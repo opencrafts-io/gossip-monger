@@ -51,8 +51,10 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 
 func (gm *GossipMonger) Start(ctx context.Context) error {
 
+	router := LoadRoutes()
 	srv := &http.Server{
-		Addr: fmt.Sprintf("%s:%d", gm.config.AppConfig.Address, gm.config.AppConfig.Port),
+		Addr:    fmt.Sprintf("%s:%d", gm.config.AppConfig.Address, gm.config.AppConfig.Port),
+		Handler: router,
 	}
 
 	errCh := make(chan error, 1)
