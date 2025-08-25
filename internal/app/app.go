@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
+	"github.com/opencrafts-io/gossip-monger/internal/middleware"
 )
 
 type GossipMonger struct {
@@ -52,9 +53,14 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 func (gm *GossipMonger) Start(ctx context.Context) error {
 
 	router := LoadRoutes()
+
+	defaultMiddlewares := middleware.CreateStack(
+		middleware.Logging(gm.logger),
+	)
+
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", gm.config.AppConfig.Address, gm.config.AppConfig.Port),
-		Handler: router,
+		Handler: defaultMiddlewares(router),
 	}
 
 	errCh := make(chan error, 1)
