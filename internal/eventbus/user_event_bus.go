@@ -18,11 +18,7 @@ func NewUserEventBus(bus EventBus) *UserEventBus {
 // PublishUserCreated publishes a user creation event.
 // It abstracts the RabbitMQ routing key and JSON marshaling.
 func (b *UserEventBus) PublishUserCreated(ctx context.Context, userID, username, email string) error {
-	event := UserEvent{
-		UserID:   userID,
-		Username: username,
-		Email:    email,
-	}
+	event := UserEvent{}
 
 	// Use a specific routing key for user creation events
 	routingKey := "user.created"
