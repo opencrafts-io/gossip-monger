@@ -15,10 +15,11 @@ import (
 )
 
 type GossipMonger struct {
-	pool         *pgxpool.Pool
-	config       *config.Config
-	logger       *slog.Logger
-	userEventBus *eventbus.UserEventBus
+	pool                 *pgxpool.Pool
+	config               *config.Config
+	logger               *slog.Logger
+	userEventBus         *eventbus.UserEventBus
+	notificationEventBus *eventbus.NotificationEventBus
 }
 
 // Creates a new gossip-monger application ready to service requests
@@ -57,13 +58,20 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}
 
+	nbus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "gossip-monger.exchange")
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
+	}
+
 	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
+	notificationEventBus := eventbus.NewNotificationEventBus(nbus, connPool, logger)
 
 	return &GossipMonger{
-		pool:         connPool,
-		config:       cfg,
-		logger:       logger,
-		userEventBus: userEventBus,
+		pool:                 connPool,
+		config:               cfg,
+		logger:               logger,
+		userEventBus:         userEventBus,
+		notificationEventBus: notificationEventBus,
 	}, nil
 }
 
@@ -71,6 +79,7 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 
 	// Setup verisafe event subscriptions
 	gm.userEventBus.SetupEventSubscriptions(ctx)
+	gm.notificationEventBus.SetupEventSubscriptions(ctx)
 
 	router := LoadRoutes(gm)
 
