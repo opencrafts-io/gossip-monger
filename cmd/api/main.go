@@ -18,6 +18,7 @@ func main() {
 		logger.Error("Failed to load configuration files for the epic gossip monger.",
 			slog.Any("error", err),
 		)
+		panic(err)
 	}
 
 	gossipMonger, err := app.NewGossipMongerApp(logger, cfg)
@@ -25,9 +26,11 @@ func main() {
 		logger.Error("Failed to create and initialize the epic gossip monger service.",
 			slog.Any("error", err),
 		)
+		panic(err)
 	}
 
 	if err = gossipMonger.Start(context.Background()); err != nil {
 		logger.Error("Failed to start the epic gossip monger service.", slog.Any("error", err))
+		panic(err)
 	}
 }

@@ -28,7 +28,11 @@ type Config struct {
 	}
 
 	// Rabbitmq configs
-	AmqpConfig struct {
+	RabbitMQConfig struct {
+		RabbitMQUser    string `envconfig:"RABBITMQ_USER"`
+		RabbitMQPass    string `envconfig:"RABBITMQ_PASSWORD"`
+		RabbitMQAddress string `envconfig:"RABBITMQ_ADDRESS"`
+		RabbitMQPort    int    `envconfig:"RABBITMQ_PORT"`
 	}
 }
 

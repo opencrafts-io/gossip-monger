@@ -88,7 +88,7 @@ func (eb *RabbitMQEventBus) Subscribe(routingKey string, handler func(event []by
 		"",    // Name, RabbitMQ will generate a unique name
 		true,  // Durable
 		false, // Delete when unused
-		true,  // Exclusive to this consumer
+		false, // Not exclusive to this consumer
 		false, // No-wait
 		nil,   // Arguments
 	)
@@ -111,7 +111,7 @@ func (eb *RabbitMQEventBus) Subscribe(routingKey string, handler func(event []by
 	msgs, err := eb.channel.Consume(
 		q.Name, // queue
 		"",     // consumer
-		true,   // auto-ack
+		false,  // auto-ack (set to false for manual acknowledgment)
 		false,  // exclusive
 		false,  // no-local
 		false,  // no-wait
@@ -124,7 +124,14 @@ func (eb *RabbitMQEventBus) Subscribe(routingKey string, handler func(event []by
 	// Start a goroutine to process messages
 	go func() {
 		for d := range msgs {
+			// Process the message
 			handler(d.Body)
+			
+			// Manually acknowledge the message
+			if err := d.Ack(false); err != nil {
+				// Log error but continue processing
+				// In a production environment, you might want to implement retry logic
+			}
 		}
 	}()
 

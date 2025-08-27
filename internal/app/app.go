@@ -10,13 +10,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
+	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
 )
 
 type GossipMonger struct {
-	pool   *pgxpool.Pool
-	config *config.Config
-	logger *slog.Logger
+	pool         *pgxpool.Pool
+	config       *config.Config
+	logger       *slog.Logger
+	userEventBus *eventbus.UserEventBus
 }
 
 // Creates a new gossip-monger application ready to service requests
@@ -43,23 +45,44 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		return nil, err
 	}
 
+	rabbitMQConnString := fmt.Sprintf("amqp://%s:%s@%s:%d/",
+		cfg.RabbitMQConfig.RabbitMQUser,
+		cfg.RabbitMQConfig.RabbitMQPass,
+		cfg.RabbitMQConfig.RabbitMQAddress,
+		cfg.RabbitMQConfig.RabbitMQPort,
+	)
+
+	bus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "verisafe.exchange")
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
+	}
+
+	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
+
 	return &GossipMonger{
-		pool:   connPool,
-		config: cfg,
-		logger: logger,
+		pool:         connPool,
+		config:       cfg,
+		logger:       logger,
+		userEventBus: userEventBus,
 	}, nil
 }
 
 func (gm *GossipMonger) Start(ctx context.Context) error {
 
-	router := LoadRoutes()
+	// Setup verisafe event subscriptions
+	gm.userEventBus.SetupEventSubscriptions(ctx)
+
+	router := LoadRoutes(gm)
 
 	defaultMiddlewares := middleware.CreateStack(
 		middleware.Logging(gm.logger),
 	)
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", gm.config.AppConfig.Address, gm.config.AppConfig.Port),
+		Addr: fmt.Sprintf("%s:%d",
+			gm.config.AppConfig.Address,
+			gm.config.AppConfig.Port,
+		),
 		Handler: defaultMiddlewares(router),
 	}
 
