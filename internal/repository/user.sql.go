@@ -122,11 +122,11 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username *string) (User
 
 const updateUserByID = `-- name: UpdateUserByID :one
 UPDATE users
-  SET 
-  email = $2,
-  name = $3,
-  username = $4,
-  phone = $5
+  SET  
+    email = COALESCE(NULLIF($2::varchar, ''), email),
+    name = COALESCE(NULLIF($3::varchar,''), name),
+    username = COALESCE(NULLIF($4::varchar,''), username),
+    phone = COALESCE(NULLIF($5::varchar,''), phone)
   WHERE id = $1
 RETURNING id, email, name, username, phone, created_at, updated_at
 `
@@ -135,8 +135,8 @@ type UpdateUserByIDParams struct {
 	ID       uuid.UUID `json:"id"`
 	Email    string    `json:"email"`
 	Name     string    `json:"name"`
-	Username *string   `json:"username"`
-	Phone    *string   `json:"phone"`
+	Username string    `json:"username"`
+	Phone    string    `json:"phone"`
 }
 
 func (q *Queries) UpdateUserByID(ctx context.Context, arg UpdateUserByIDParams) (User, error) {

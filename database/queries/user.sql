@@ -26,11 +26,11 @@ RETURNING *;
 
 -- name: UpdateUserByID :one
 UPDATE users
-  SET 
-  email = $2,
-  name = $3,
-  username = $4,
-  phone = $5
+  SET  
+    email = COALESCE(NULLIF(@email::varchar, ''), email),
+    name = COALESCE(NULLIF(@name::varchar,''), name),
+    username = COALESCE(NULLIF(@username::varchar,''), username),
+    phone = COALESCE(NULLIF(@phone::varchar,''), phone)
   WHERE id = $1
 RETURNING *;
 

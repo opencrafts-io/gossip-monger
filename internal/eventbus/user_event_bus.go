@@ -69,6 +69,33 @@ func (b *UserEventBus) SubscribeUserCreated(ctx context.Context,
 			// A dead-letter queue or logging service could be used here
 			return
 		}
+
+		if event.Metadata.EventType != "user.created" {
+			b.logger.Error(fmt.Sprintf(
+				"Wrong metadata event type expected user.created instead got %s",
+				event.Metadata.EventType,
+			),
+				slog.String("requested", "user.created"),
+				slog.String("user_id", event.User.ID.String()),
+				/// Log that the operation was aborted by the service to maintain consistency
+				slog.Bool("abort", true),
+			)
+			return
+		}
+
+		if event.Metadata.SourceServiceID != "io.opencrafts.verisafe" {
+			b.logger.Error(fmt.Sprintf(
+				"Wrong metadata event service source id expected 'io.opencrafts.verisafe' instead got %s",
+				event.Metadata.SourceServiceID,
+			),
+				slog.String("requested", "user.created"),
+				slog.String("user_id", event.User.ID.String()),
+				/// Log that the operation was aborted by the service to maintain consistency
+				slog.Bool("abort", true),
+			)
+			return
+		}
+
 		b.logger.Info("User created", slog.Any("user", event))
 		handler(ctx, event)
 	})
@@ -91,6 +118,33 @@ func (b *UserEventBus) SubscribeUserUpdated(
 			// A dead-letter queue or logging service could be used here
 			return
 		}
+
+		if event.Metadata.EventType != "user.updated" {
+			b.logger.Error(fmt.Sprintf(
+				"Wrong metadata event type expected user.created instead got %s",
+				event.Metadata.EventType,
+			),
+				slog.String("requested", "user.updated"),
+				slog.String("user_id", event.User.ID.String()),
+				/// Log that the operation was aborted by the service to maintain consistency
+				slog.Bool("abort", true),
+			)
+			return
+		}
+
+		if event.Metadata.SourceServiceID != "io.opencrafts.verisafe" {
+			b.logger.Error(fmt.Sprintf(
+				"Wrong metadata event service source id expected 'io.opencrafts.verisafe' instead got %s",
+				event.Metadata.SourceServiceID,
+			),
+				slog.String("requested", "user.updated"),
+				slog.String("user_id", event.User.ID.String()),
+				/// Log that the operation was aborted by the service to maintain consistency
+				slog.Bool("abort", true),
+			)
+			return
+		}
+
 		handler(ctx, event)
 	})
 }
@@ -112,6 +166,33 @@ func (b *UserEventBus) SubscribeUserDeleted(
 			// A dead-letter queue or logging service could be used here
 			return
 		}
+
+		if event.Metadata.EventType != "user.deleted" {
+			b.logger.Error(fmt.Sprintf(
+				"Wrong metadata event type expected user.deleted instead got %s",
+				event.Metadata.EventType,
+			),
+				slog.String("requested", "user.deleted"),
+				slog.String("user_id", event.User.ID.String()),
+				/// Log that the operation was aborted by the service to maintain consistency
+				slog.Bool("abort", true),
+			)
+			return
+		}
+
+		if event.Metadata.SourceServiceID != "io.opencrafts.verisafe" {
+			b.logger.Error(fmt.Sprintf(
+				"Wrong metadata event service source id expected 'io.opencrafts.verisafe' instead got %s",
+				event.Metadata.SourceServiceID,
+			),
+				slog.String("requested", "user.deleted"),
+				slog.String("user_id", event.User.ID.String()),
+				/// Log that the operation was aborted by the service to maintain consistency
+				slog.Bool("abort", true),
+			)
+			return
+		}
+
 		handler(ctx, event)
 	})
 }
