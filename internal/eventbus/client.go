@@ -3,6 +3,7 @@ package eventbus
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -83,11 +84,12 @@ func (eb *RabbitMQEventBus) Publish(ctx context.Context, routingKey string, even
 
 // Subscribe declares a queue, binds it to the exchange, and consumes messages.
 func (eb *RabbitMQEventBus) Subscribe(routingKey string, handler func(event []byte)) error {
+	queueName := fmt.Sprintf("io.opencrafts.gossip-monger.%s", routingKey)
 	// Declare a durable, non-exclusive queue
 	q, err := eb.channel.QueueDeclare(
-		"",    // Name, RabbitMQ will generate a unique name
+		queueName,    // Name, RabbitMQ will generate a unique name
 		true,  // Durable
-		false, // Delete when unused
+		true,  // Delete when unused
 		false, // Not exclusive to this consumer
 		false, // No-wait
 		nil,   // Arguments
@@ -126,7 +128,7 @@ func (eb *RabbitMQEventBus) Subscribe(routingKey string, handler func(event []by
 		for d := range msgs {
 			// Process the message
 			handler(d.Body)
-			
+
 			// Manually acknowledge the message
 			if err := d.Ack(false); err != nil {
 				// Log error but continue processing
