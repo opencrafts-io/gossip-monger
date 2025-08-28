@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/OneSignal/onesignal-go-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
 	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
@@ -64,7 +65,16 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 	}
 
 	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
-	notificationEventBus := eventbus.NewNotificationEventBus(nbus, connPool, logger)
+	onesignalConfig := onesignal.NewConfiguration()
+	onesignalConfig.AddDefaultHeader("Authorization", fmt.Sprintf("Basic %s", cfg.OneSignalConfig.RestAPIKey))
+	oneSignalService := onesignal.NewAPIClient(onesignalConfig)
+
+	if oneSignalService == nil {
+		logger.Error("Failed to initialize onesignal api client", slog.Any("oneSignalService", oneSignalService))
+		panic("Failed to initialize one signal service")
+
+	}
+	notificationEventBus := eventbus.NewNotificationEventBus(nbus, connPool, oneSignalService, logger)
 
 	return &GossipMonger{
 		pool:                 connPool,

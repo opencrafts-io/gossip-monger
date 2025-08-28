@@ -5,9 +5,75 @@
 package repository
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type Notification struct {
+	ID                      uuid.UUID        `json:"id"`
+	AppID                   string           `json:"app_id"`
+	IncludedSegments        []string         `json:"included_segments"`
+	ExcludedSegments        []string         `json:"excluded_segments"`
+	IncludePlayerIds        []string         `json:"include_player_ids"`
+	IncludeExternalUserIds  []string         `json:"include_external_user_ids"`
+	IncludeEmailTokens      []string         `json:"include_email_tokens"`
+	IncludePhoneNumbers     []string         `json:"include_phone_numbers"`
+	IncludeIosTokens        []string         `json:"include_ios_tokens"`
+	IncludeWpWnsUris        []string         `json:"include_wp_wns_uris"`
+	IncludeAmazonRegIds     []string         `json:"include_amazon_reg_ids"`
+	IncludeChromeRegIds     []string         `json:"include_chrome_reg_ids"`
+	IncludeChromeWebRegIds  []string         `json:"include_chrome_web_reg_ids"`
+	IncludeAndroidRegIds    []string         `json:"include_android_reg_ids"`
+	Contents                json.RawMessage  `json:"contents"`
+	Headings                json.RawMessage  `json:"headings"`
+	Subtitle                json.RawMessage  `json:"subtitle"`
+	Buttons                 json.RawMessage  `json:"buttons"`
+	WebButtons              json.RawMessage  `json:"web_buttons"`
+	BigPicture              *string          `json:"big_picture"`
+	LargeIcon               *string          `json:"large_icon"`
+	SmallIcon               *string          `json:"small_icon"`
+	IosAttachments          json.RawMessage  `json:"ios_attachments"`
+	AndroidChannelID        *string          `json:"android_channel_id"`
+	AndroidAccentColor      *string          `json:"android_accent_color"`
+	AndroidLedColor         *string          `json:"android_led_color"`
+	AndroidGroup            *string          `json:"android_group"`
+	AndroidGroupMessage     json.RawMessage  `json:"android_group_message"`
+	AndroidSound            *string          `json:"android_sound"`
+	IosSound                *string          `json:"ios_sound"`
+	WpWnsSound              *string          `json:"wp_wns_sound"`
+	AdmSound                *string          `json:"adm_sound"`
+	ChromeWebImage          *string          `json:"chrome_web_image"`
+	ChromeWebIcon           *string          `json:"chrome_web_icon"`
+	ChromeWebBadge          *string          `json:"chrome_web_badge"`
+	ChromeWebColor          *string          `json:"chrome_web_color"`
+	ChromeWebSound          *string          `json:"chrome_web_sound"`
+	Url                     *string          `json:"url"`
+	WebUrl                  *string          `json:"web_url"`
+	AppUrl                  *string          `json:"app_url"`
+	Data                    json.RawMessage  `json:"data"`
+	Filters                 json.RawMessage  `json:"filters"`
+	Tags                    json.RawMessage  `json:"tags"`
+	SendAfter               pgtype.Timestamp `json:"send_after"`
+	DelayedOption           *string          `json:"delayed_option"`
+	DeliveryTimeOfDay       pgtype.Time      `json:"delivery_time_of_day"`
+	Ttl                     *int32           `json:"ttl"`
+	Priority                *int32           `json:"priority"`
+	OnesignalNotificationID *string          `json:"onesignal_notification_id"`
+	OnesignalStatus         *string          `json:"onesignal_status"`
+	OnesignalResponse       json.RawMessage  `json:"onesignal_response"`
+	OnesignalError          *string          `json:"onesignal_error"`
+	TargetUserID            pgtype.UUID      `json:"target_user_id"`
+	SourceServiceID         *string          `json:"source_service_id"`
+	SourceUserID            pgtype.UUID      `json:"source_user_id"`
+	NotificationType        *string          `json:"notification_type"`
+	Status                  *string          `json:"status"`
+	CreatedAt               pgtype.Timestamp `json:"created_at"`
+	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
+	SentAt                  pgtype.Timestamp `json:"sent_at"`
+	DeliveredAt             pgtype.Timestamp `json:"delivered_at"`
+}
 
 type User struct {
 	ID        uuid.UUID        `json:"id"`

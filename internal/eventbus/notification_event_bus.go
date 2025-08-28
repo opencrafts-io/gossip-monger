@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/OneSignal/onesignal-go-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -15,18 +16,24 @@ type NotificationEventBus struct {
 	logger                   *slog.Logger
 	pool                     *pgxpool.Pool
 	notificationEventHandler *NotificationEventHandler
+	onesignalClient          *onesignal.APIClient
 }
 
-// NewUserEventBus creates a new UserEventBus instance.
-func NewNotificationEventBus(bus EventBus, pool *pgxpool.Pool, logger *slog.Logger) *NotificationEventBus {
+// NewNotificationEventBus creates a new NotificationEventBus instance.
+func NewNotificationEventBus(
+	bus EventBus, pool *pgxpool.Pool,
+	onesignalClient *onesignal.APIClient,
+	logger *slog.Logger,
+) *NotificationEventBus {
 
-	notificationEventHandler := NewNotificationEventHandler(pool, logger)
+	notificationEventHandler := NewNotificationEventHandler(pool, onesignalClient, logger)
 
 	b := &NotificationEventBus{
 		bus:                      bus,
 		pool:                     pool,
 		logger:                   logger,
 		notificationEventHandler: notificationEventHandler,
+		onesignalClient:          onesignalClient,
 	}
 
 	return b
