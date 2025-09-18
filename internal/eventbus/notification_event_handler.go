@@ -48,13 +48,17 @@ func (h *NotificationEventHandler) HandlerPushNotificationSendRequested(
 	result, code, err := h.onesignalClient.DefaultApi.
 		CreateNotification(ctx).Notification(*notification).Execute()
 
-	if err != nil {
-		var body []byte
-		if code != nil && code.Body != nil {
-			defer code.Body.Close()
-			body, _ = io.ReadAll(code.Body)
-		}
+	var body []byte
+	if code != nil && code.Body != nil {
+		defer code.Body.Close()
+		body, _ = io.ReadAll(code.Body)
+	}
 
+	event.Notification.OnesignalResponse = body
+
+	if err != nil {
+		error := string(body)
+		event.Notification.OnesignalError = &error
 		h.logger.Error("Error occurred while sending notification",
 			slog.Any("response", string(body)),
 			slog.Any("error", err),
@@ -66,9 +70,91 @@ func (h *NotificationEventHandler) HandlerPushNotificationSendRequested(
 
 	}
 	if code.StatusCode == http.StatusOK {
-		h.logger.Info("Notification sent successfully", slog.Any("result", result))
+		var bodyMap map[string]any
+		if len(body) > 0 {
+			if err := json.Unmarshal(body, &bodyMap); err != nil {
+				h.logger.Error("Failed to unmarshal response body", slog.Any("error", err))
+			}
+		}
+		if id, ok := bodyMap["id"].(string); ok {
+			event.Notification.OnesignalNotificationID = &id
+		} else {
+			h.logger.Warn("Response did not contain an 'id' field as string", slog.Any("body", bodyMap))
+		}
+
+	}
+
+	// Write to the db
+	conn, err := h.pool.Acquire(ctx)
+	if err != nil {
+		h.logger.Error("Failed to acquire connection from pool", slog.Any("notification", notification))
 		return
 	}
+	repo := repository.New(conn)
+	if _, err = repo.CreateNotification(ctx, repository.CreateNotificationParams{
+		AppID:                   event.Notification.AppID,
+		IncludedSegments:        event.Notification.IncludedSegments,
+		ExcludedSegments:        event.Notification.ExcludedSegments,
+		IncludePlayerIds:        event.Notification.IncludePlayerIds,
+		IncludeExternalUserIds:  event.Notification.IncludeExternalUserIds,
+		IncludeEmailTokens:      event.Notification.IncludeEmailTokens,
+		IncludePhoneNumbers:     event.Notification.IncludePhoneNumbers,
+		IncludeIosTokens:        event.Notification.IncludeIosTokens,
+		IncludeWpWnsUris:        event.Notification.IncludeWpWnsUris,
+		IncludeAmazonRegIds:     event.Notification.IncludeAmazonRegIds,
+		IncludeChromeRegIds:     event.Notification.IncludeChromeRegIds,
+		IncludeChromeWebRegIds:  event.Notification.IncludeChromeWebRegIds,
+		IncludeAndroidRegIds:    event.Notification.IncludeAndroidRegIds,
+		Contents:                event.Notification.Contents,
+		Headings:                event.Notification.Headings,
+		Subtitle:                event.Notification.Subtitle,
+		BigPicture:              event.Notification.BigPicture,
+		LargeIcon:               event.Notification.LargeIcon,
+		SmallIcon:               event.Notification.SmallIcon,
+		IosAttachments:          event.Notification.IosAttachments,
+		AndroidChannelID:        event.Notification.AndroidChannelID,
+		AndroidAccentColor:      event.Notification.AndroidAccentColor,
+		AndroidLedColor:         event.Notification.AndroidLedColor,
+		AndroidGroup:            event.Notification.AndroidGroup,
+		AndroidGroupMessage:     event.Notification.AndroidGroupMessage,
+		AndroidSound:            event.Notification.AndroidSound,
+		IosSound:                event.Notification.IosSound,
+		WpWnsSound:              event.Notification.WpWnsSound,
+		AdmSound:                event.Notification.AdmSound,
+		ChromeWebImage:          event.Notification.ChromeWebImage,
+		ChromeWebIcon:           event.Notification.ChromeWebIcon,
+		ChromeWebBadge:          event.Notification.ChromeWebBadge,
+		ChromeWebColor:          event.Notification.ChromeWebColor,
+		ChromeWebSound:          event.Notification.ChromeWebSound,
+		Url:                     event.Notification.Url,
+		WebUrl:                  event.Notification.WebUrl,
+		AppUrl:                  event.Notification.AppUrl,
+		Data:                    event.Notification.Data,
+		Filters:                 event.Notification.Filters,
+		Tags:                    event.Notification.Tags,
+		SendAfter:               event.Notification.SendAfter,
+		DelayedOption:           event.Notification.DelayedOption,
+		DeliveryTimeOfDay:       event.Notification.DeliveryTimeOfDay,
+		Ttl:                     event.Notification.Ttl,
+		Priority:                event.Notification.Priority,
+		TargetUserID:            event.Notification.TargetUserID,
+		SourceServiceID:         event.Notification.SourceServiceID,
+		SourceUserID:            event.Notification.SourceUserID,
+		NotificationType:        event.Notification.NotificationType,
+		OnesignalNotificationID: event.Notification.OnesignalNotificationID,
+		OnesignalStatus:         event.Notification.OnesignalStatus,
+		OnesignalResponse:       event.Notification.OnesignalResponse,
+		OnesignalError:          event.Notification.OnesignalError,
+	}); err != nil {
+		h.logger.Error("Failed to write notification to db",
+			slog.Any("error", err),
+			slog.Any("Notification", event.Notification),
+		)
+		return
+	}
+
+	h.logger.Info("Notification successfully created and  sent")
+
 }
 
 func (h *NotificationEventHandler) convertToOneSignalNotification(
