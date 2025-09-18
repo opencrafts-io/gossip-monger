@@ -8,7 +8,6 @@ import (
 
 // NotificationEventMetadata contains crucial information about the event itself.
 type NotificationEventMetadata struct {
-	Notification    repository.Notification `json:"notification"`
 	EventType       string                  `json:"event_type"`
 	Timestamp       time.Time               `json:"timestamp"`
 	SourceServiceID string                  `json:"source_service_id"`
@@ -16,5 +15,6 @@ type NotificationEventMetadata struct {
 }
 
 type NotificationEvent struct {
-	Metadata NotificationEventMetadata `json:"meta"`
+	Notification repository.Notification   `json:"notification"`
+	Metadata     NotificationEventMetadata `json:"meta"`
 }

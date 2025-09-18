@@ -67,6 +67,7 @@ func (b *NotificationEventBus) SubscribePushNotificationRequested(ctx context.Co
 		if err := json.Unmarshal(data, &event); err != nil {
 			// Log the error but don't stop the consumer
 			// A dead-letter queue or logging service could be used here
+			b.logger.Error("Error unmarshalling data", slog.Any("error", err))
 			return
 		}
 

@@ -66,7 +66,9 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 
 	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
 	onesignalConfig := onesignal.NewConfiguration()
-	onesignalConfig.AddDefaultHeader("Authorization", fmt.Sprintf("Basic %s", cfg.OneSignalConfig.RestAPIKey))
+	onesignalConfig.AddDefaultHeader("Authorization",
+		fmt.Sprintf("Basic %s", cfg.OneSignalConfig.RestAPIKey),
+	)
 	oneSignalService := onesignal.NewAPIClient(onesignalConfig)
 
 	if oneSignalService == nil {
