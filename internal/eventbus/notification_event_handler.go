@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -44,9 +45,19 @@ func (h *NotificationEventHandler) HandlerPushNotificationSendRequested(
 		return
 	}
 
-	result, code, err := h.onesignalClient.DefaultApi.CreateNotification(ctx).Notification(*notification).Execute()
+	result, code, err := h.onesignalClient.DefaultApi.
+		CreateNotification(ctx).Notification(*notification).Execute()
+
 	if err != nil {
-		h.logger.Error("Error occurred while sending notification", slog.Any("error", err),
+		var body []byte
+		if code != nil && code.Body != nil {
+			defer code.Body.Close()
+			body, _ = io.ReadAll(code.Body)
+		}
+
+		h.logger.Error("Error occurred while sending notification",
+			slog.Any("response", string(body)),
+			slog.Any("error", err),
 			slog.Any("more", result.GetErrors()),
 		)
 		h.logger.Error("Result", slog.Any("result", result))
@@ -54,7 +65,6 @@ func (h *NotificationEventHandler) HandlerPushNotificationSendRequested(
 		return
 
 	}
-
 	if code.StatusCode == http.StatusOK {
 		h.logger.Info("Notification sent successfully", slog.Any("result", result))
 		return
@@ -76,11 +86,15 @@ func (h *NotificationEventHandler) convertToOneSignalNotification(
 
 	// Parse the notification heading
 
+	var targetUsers []string
+	targetUsers = append(targetUsers, eventNotification.TargetUserID.String())
+
+	if eventNotification.IncludeExternalUserIds != nil {
+		targetUsers = append(targetUsers, eventNotification.IncludeExternalUserIds...)
+	}
+
 	// Notification Recipients
-	notification.SetIncludeAliases(map[string][]string{"external_id": {
-		eventNotification.TargetUserID.String(),
-	},
-	})
+	notification.SetIncludeAliases(map[string][]string{"external_id": targetUsers})
 
 	// Notification title
 	var eventNotificationTitleRawContents map[string]string
@@ -198,7 +212,7 @@ func (h *NotificationEventHandler) convertToOneSignalNotification(
 		for _, rawButton := range eventNotificationButtonRawContents {
 			btn := onesignal.NewButton(rawButton["id"])
 			btn.SetText(rawButton["text"])
-			btn.SetText(rawButton["icon"])
+			btn.SetIcon(rawButton["icon"])
 			btns = append(btns, *btn)
 		}
 		notification.SetButtons(btns)
