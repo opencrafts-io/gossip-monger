@@ -3,6 +3,7 @@ module github.com/opencrafts-io/gossip-monger
 go 1.24.6
 
 require (
+	github.com/OneSignal/onesignal-go-api/v5 v5.2.0-beta1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
@@ -11,7 +12,6 @@ require (
 )
 
 require (
-	github.com/OneSignal/onesignal-go-api/v5 v5.2.0-beta1 // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
