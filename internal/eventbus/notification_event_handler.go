@@ -90,6 +90,8 @@ func (h *NotificationEventHandler) HandlerPushNotificationSendRequested(
 		h.logger.Error("Failed to acquire connection from pool", slog.Any("notification", notification))
 		return
 	}
+	defer conn.Release()
+
 	repo := repository.New(conn)
 	if _, err = repo.CreateNotification(ctx, repository.CreateNotificationParams{
 		AppID:                   event.Notification.AppID,
