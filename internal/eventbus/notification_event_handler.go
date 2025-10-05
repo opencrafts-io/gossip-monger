@@ -203,21 +203,23 @@ func (h *NotificationEventHandler) convertToOneSignalNotification(
 		notification.SetHeadings(*heading)
 	}
 
-	var eventNotificationSubtitleRawContents map[string]string
-	if err := json.Unmarshal(eventNotification.Subtitle,
-		&eventNotificationSubtitleRawContents); err != nil {
-		return nil, err
-	}
-
-	// Support for more languages later
-	for lang, content := range eventNotificationSubtitleRawContents {
-		subtitle := onesignal.NewLanguageStringMap()
-		switch lang {
-		case "en":
-			subtitle.SetEn(content)
-			break
+	if len(eventNotification.Subtitle) > 0 {
+		var eventNotificationSubtitleRawContents map[string]string
+		if err := json.Unmarshal(eventNotification.Subtitle,
+			&eventNotificationSubtitleRawContents); err != nil {
+			return nil, err
 		}
-		notification.SetSubtitle(*subtitle)
+
+		// Support for more languages later
+		for lang, content := range eventNotificationSubtitleRawContents {
+			subtitle := onesignal.NewLanguageStringMap()
+			switch lang {
+			case "en":
+				subtitle.SetEn(content)
+				break
+			}
+			notification.SetSubtitle(*subtitle)
+		}
 	}
 
 	// Notification body
