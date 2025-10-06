@@ -10,6 +10,7 @@ import (
 
 	"github.com/OneSignal/onesignal-go-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/opencrafts-io/gossip-monger/database"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
 	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
@@ -88,6 +89,8 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 }
 
 func (gm *GossipMonger) Start(ctx context.Context) error {
+
+	database.RunGooseMigrations(gm.logger, gm.pool)
 
 	// Setup verisafe event subscriptions
 	gm.userEventBus.SetupEventSubscriptions(ctx)
