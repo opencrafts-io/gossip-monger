@@ -34,6 +34,12 @@ type Config struct {
 		RabbitMQAddress string `envconfig:"RABBITMQ_ADDRESS"`
 		RabbitMQPort    int    `envconfig:"RABBITMQ_PORT"`
 	}
+
+	// OneSignal configuration
+	OneSignalConfig struct {
+		AppID      string `envconfig:"ONESIGNAL_APP_ID"`
+		RestAPIKey string `envconfig:"ONESIGNAL_REST_API_KEY"`
+	}
 }
 
 // The LoadConfig function loads the env file specified and returns

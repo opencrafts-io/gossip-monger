@@ -8,17 +8,20 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/OneSignal/onesignal-go-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/opencrafts-io/gossip-monger/database"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
 	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
 )
 
 type GossipMonger struct {
-	pool         *pgxpool.Pool
-	config       *config.Config
-	logger       *slog.Logger
-	userEventBus *eventbus.UserEventBus
+	pool                 *pgxpool.Pool
+	config               *config.Config
+	logger               *slog.Logger
+	userEventBus         *eventbus.UserEventBus
+	notificationEventBus *eventbus.NotificationEventBus
 }
 
 // Creates a new gossip-monger application ready to service requests
@@ -57,20 +60,41 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}
 
+	nbus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "gossip-monger.exchange")
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
+	}
+
 	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
+	onesignalConfig := onesignal.NewConfiguration()
+	onesignalConfig.AddDefaultHeader("Authorization",
+		fmt.Sprintf("Basic %s", cfg.OneSignalConfig.RestAPIKey),
+	)
+	oneSignalService := onesignal.NewAPIClient(onesignalConfig)
+
+	if oneSignalService == nil {
+		logger.Error("Failed to initialize onesignal api client", slog.Any("oneSignalService", oneSignalService))
+		panic("Failed to initialize one signal service")
+
+	}
+	notificationEventBus := eventbus.NewNotificationEventBus(nbus, connPool, oneSignalService, logger)
 
 	return &GossipMonger{
-		pool:         connPool,
-		config:       cfg,
-		logger:       logger,
-		userEventBus: userEventBus,
+		pool:                 connPool,
+		config:               cfg,
+		logger:               logger,
+		userEventBus:         userEventBus,
+		notificationEventBus: notificationEventBus,
 	}, nil
 }
 
 func (gm *GossipMonger) Start(ctx context.Context) error {
 
+	database.RunGooseMigrations(gm.logger, gm.pool)
+
 	// Setup verisafe event subscriptions
 	gm.userEventBus.SetupEventSubscriptions(ctx)
+	gm.notificationEventBus.SetupEventSubscriptions(ctx)
 
 	router := LoadRoutes(gm)
 

@@ -22,6 +22,10 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"
+          - db_type: "pgtype.uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
           - db_type: "TEXT"
             go_type:
               type: "string"
@@ -35,4 +39,31 @@ sql:
               import: "time"
               type: "Time"
               pointer: true
+            nullable: true
+          - db_type: "pg_catalog.json"
+            go_type: "encoding/json.RawMessage"
+
+          - db_type: "pg_catalog.json"
+            go_type: "encoding/json.RawMessage"
+            nullable: true
+
+          - db_type: "json"
+            go_type: "encoding/json.RawMessage"
+
+          - db_type: "json"
+            go_type: "encoding/json.RawMessage"
+            nullable: true
+
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+
+          - db_type: "jsonb"
+            go_type: "encoding/json.RawMessage"
+            nullable: true
+
+          - db_type: "pg_catalog.jsonb"
+            go_type: "encoding/json.RawMessage"
+
+          - db_type: "pg_catalog.jsonb"
+            go_type: "encoding/json.RawMessage"
             nullable: true
