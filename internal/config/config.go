@@ -40,6 +40,11 @@ type Config struct {
 		AppID      string `envconfig:"ONESIGNAL_APP_ID"`
 		RestAPIKey string `envconfig:"ONESIGNAL_REST_API_KEY"`
 	}
+
+	// Resend configuration
+	ResendConfig struct {
+		ResendAPIKey string `envconfig:"RESEND_API_KEY"`
+	}
 }
 
 // The LoadConfig function loads the env file specified and returns
