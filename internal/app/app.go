@@ -58,12 +58,12 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		cfg.RabbitMQConfig.RabbitMQPort,
 	)
 
-	bus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "verisafe.exchange")
+	bus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "verisafe.exchange", eventbus.FanoutExchangeType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}
 
-	nbus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "gossip-monger.exchange")
+	nbus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "gossip-monger.exchange", eventbus.DirectExchangeType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}

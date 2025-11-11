@@ -34,34 +34,16 @@ func NewUserEventBus(bus EventBus, pool *pgxpool.Pool, logger *slog.Logger) *Use
 
 // SetupEventSubscriptions sets up all event subscriptions for the application
 func (b *UserEventBus) SetupEventSubscriptions(ctx context.Context) error {
-	// Subscribe to user created events
-	if err := b.SubscribeUserCreated(ctx, b.userEventHandler.HandleUserCreated); err != nil {
-		return fmt.Errorf("failed to subscribe to user created events: %w", err)
-	}
-
-	// Subscribe to user updated events
-	if err := b.SubscribeUserUpdated(ctx, b.userEventHandler.HandleUserUpdated); err != nil {
-		return fmt.Errorf("failed to subscribe to user updated events: %w", err)
-	}
-
-	// Subscribe to user deleted events
-	if err := b.SubscribeUserDeleted(ctx, b.userEventHandler.HandleUserDeleted); err != nil {
-		return fmt.Errorf("failed to subscribe to user deleted events: %w", err)
+	if err := b.SubscribeForUserEvents(ctx); err != nil {
+		return fmt.Errorf("failed to subscribe to user events: %w", err)
 	}
 
 	b.logger.Info("Verisafe user event subscriptions set up successfully")
 	return nil
 }
 
-// SubscribeUserCreated listens for user creation events.
-// It handles unmarshaling and passes a typed struct to the handler.
-func (b *UserEventBus) SubscribeUserCreated(ctx context.Context,
-	handler func(context context.Context, event UserEvent),
-) error {
-	// Use the same routing key as the publisher
-	routingKey := "verisafe.user.created"
-
-	// Subscribe to the generic event bus, and wrap the handler to unmarshal the data
+func (b *UserEventBus) SubscribeForUserEvents(ctx context.Context) error {
+	routingKey := "verisafe.user.events"
 	return b.bus.Subscribe(routingKey, func(data []byte) {
 		var event UserEvent
 		if err := json.Unmarshal(data, &event); err != nil {
@@ -69,20 +51,6 @@ func (b *UserEventBus) SubscribeUserCreated(ctx context.Context,
 			// A dead-letter queue or logging service could be used here
 			return
 		}
-
-		if event.Metadata.EventType != "user.created" {
-			b.logger.Error(fmt.Sprintf(
-				"Wrong metadata event type expected user.created instead got %s",
-				event.Metadata.EventType,
-			),
-				slog.String("requested", "user.created"),
-				slog.String("user_id", event.User.ID.String()),
-				/// Log that the operation was aborted by the service to maintain consistency
-				slog.Bool("abort", true),
-			)
-			return
-		}
-
 		if event.Metadata.SourceServiceID != "io.opencrafts.verisafe" {
 			b.logger.Error(fmt.Sprintf(
 				"Wrong metadata event service source id expected 'io.opencrafts.verisafe' instead got %s",
@@ -96,124 +64,32 @@ func (b *UserEventBus) SubscribeUserCreated(ctx context.Context,
 			return
 		}
 
-		b.logger.Info("User created", slog.Any("user", event))
-		handler(ctx, event)
-	})
-}
+		switch event.Metadata.EventType {
+		case "user.created":
+			b.userEventHandler.HandleUserCreated(ctx, event)
+			break
 
-// SubscribeUserUpdated listens for user updated events.
-// It handles unmarshaling and passes a typed struct to the handler.
-func (b *UserEventBus) SubscribeUserUpdated(
-	ctx context.Context,
-	handler func(ctx context.Context, event UserEvent),
-) error {
-	// Use the same routing key as the publisher
-	routingKey := "verisafe.user.updated"
+		case "user.updated":
+			b.userEventHandler.HandleUserUpdated(ctx, event)
+			break
 
-	// Subscribe to the generic event bus, and wrap the handler to unmarshal the data
-	return b.bus.Subscribe(routingKey, func(data []byte) {
-		var event UserEvent
-		if err := json.Unmarshal(data, &event); err != nil {
-			// Log the error but don't stop the consumer
-			// A dead-letter queue or logging service could be used here
-			return
-		}
-
-		if event.Metadata.EventType != "user.updated" {
+		case "user.deleted":
+			b.userEventHandler.HandleUserDeleted(ctx, event)
+			break
+		default:
 			b.logger.Error(fmt.Sprintf(
 				"Wrong metadata event type expected user.created instead got %s",
 				event.Metadata.EventType,
 			),
-				slog.String("requested", "user.updated"),
+				slog.String("requested", "user.created"),
 				slog.String("user_id", event.User.ID.String()),
 				/// Log that the operation was aborted by the service to maintain consistency
 				slog.Bool("abort", true),
 			)
 			return
+
 		}
 
-		if event.Metadata.SourceServiceID != "io.opencrafts.verisafe" {
-			b.logger.Error(fmt.Sprintf(
-				"Wrong metadata event service source id expected 'io.opencrafts.verisafe' instead got %s",
-				event.Metadata.SourceServiceID,
-			),
-				slog.String("requested", "user.updated"),
-				slog.String("user_id", event.User.ID.String()),
-				/// Log that the operation was aborted by the service to maintain consistency
-				slog.Bool("abort", true),
-			)
-			return
-		}
-
-		handler(ctx, event)
+		b.logger.Info("User event handled successfully", slog.Any("event", event))
 	})
-}
-
-// SubscribeUserDeleted listens for user deletion events.
-// It handles unmarshaling and passes a typed struct to the handler.
-func (b *UserEventBus) SubscribeUserDeleted(
-	ctx context.Context,
-	handler func(ctx context.Context, event UserEvent),
-) error {
-	// Use the same routing key as the publisher
-	routingKey := "verisafe.user.deleted"
-
-	// Subscribe to the generic event bus, and wrap the handler to unmarshal the data
-	return b.bus.Subscribe(routingKey, func(data []byte) {
-		var event UserEvent
-		if err := json.Unmarshal(data, &event); err != nil {
-			// Log the error but don't stop the consumer
-			// A dead-letter queue or logging service could be used here
-			return
-		}
-
-		if event.Metadata.EventType != "user.deleted" {
-			b.logger.Error(fmt.Sprintf(
-				"Wrong metadata event type expected user.deleted instead got %s",
-				event.Metadata.EventType,
-			),
-				slog.String("requested", "user.deleted"),
-				slog.String("user_id", event.User.ID.String()),
-				/// Log that the operation was aborted by the service to maintain consistency
-				slog.Bool("abort", true),
-			)
-			return
-		}
-
-		if event.Metadata.SourceServiceID != "io.opencrafts.verisafe" {
-			b.logger.Error(fmt.Sprintf(
-				"Wrong metadata event service source id expected 'io.opencrafts.verisafe' instead got %s",
-				event.Metadata.SourceServiceID,
-			),
-				slog.String("requested", "user.deleted"),
-				slog.String("user_id", event.User.ID.String()),
-				/// Log that the operation was aborted by the service to maintain consistency
-				slog.Bool("abort", true),
-			)
-			return
-		}
-
-		handler(ctx, event)
-	})
-}
-
-// PublishUserCreated publishes a user created event to the event bus
-func (b *UserEventBus) PublishUserCreated(ctx context.Context, event UserEvent) error {
-	routingKey := "verisafe.user.created"
-	b.logger.Info("Publishing user created event", slog.String("routing_key", routingKey))
-	return b.bus.Publish(ctx, routingKey, event)
-}
-
-// PublishUserUpdated publishes a user updated event to the event bus
-func (b *UserEventBus) PublishUserUpdated(ctx context.Context, event UserEvent) error {
-	routingKey := "verisafe.user.updated"
-	b.logger.Info("Publishing user updated event", slog.String("routing_key", routingKey))
-	return b.bus.Publish(ctx, routingKey, event)
-}
-
-// PublishUserDeleted publishes a user deleted event to the event bus
-func (b *UserEventBus) PublishUserDeleted(ctx context.Context, event UserEvent) error {
-	routingKey := "verisafe.user.deleted"
-	b.logger.Info("Publishing user deleted event", slog.String("routing_key", routingKey))
-	return b.bus.Publish(ctx, routingKey, event)
 }

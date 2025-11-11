@@ -8,12 +8,18 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-const VERISAFE = "hello"
+type ExchangeType string
+
+const (
+	DirectExchangeType ExchangeType = "direct"
+	FanoutExchangeType ExchangeType = "fanout"
+	TopicExhangeType   ExchangeType = "topic"
+)
 
 // EventBus is an interface that defines the contract for any event bus implementation.
 // The Publish method now accepts a routing key.
 type EventBus interface {
-	Publish(ctx context.Context, routingKey string, event interface{}) error
+	Publish(ctx context.Context, routingKey string, event any) error
 	Subscribe(routingKey string, handler func(event []byte)) error
 	Close()
 }
@@ -27,7 +33,7 @@ type RabbitMQEventBus struct {
 
 // NewRabbitMQEventBus creates and returns a new RabbitMQEventBus instance.
 // It connects to the RabbitMQ server and declares a durable exchange.
-func NewRabbitMQEventBus(amqpURI, exchange string) (*RabbitMQEventBus, error) {
+func NewRabbitMQEventBus(amqpURI, exchange string, exchangeType ExchangeType) (*RabbitMQEventBus, error) {
 	conn, err := amqp.Dial(amqpURI)
 	if err != nil {
 		return nil, err
@@ -40,13 +46,13 @@ func NewRabbitMQEventBus(amqpURI, exchange string) (*RabbitMQEventBus, error) {
 
 	// Declare a durable direct exchange
 	err = ch.ExchangeDeclare(
-		exchange, // name
-		"direct", // type
-		true,     // durable
-		false,    // auto-deleted
-		false,    // internal
-		false,    // no-wait
-		nil,      // arguments
+		exchange,                   // name
+		string(exchangeType), // type
+		true,                       // durable
+		false,                      // auto-deleted
+		false,                      // internal
+		false,                      // no-wait
+		nil,                        // arguments
 	)
 	if err != nil {
 		return nil, err
@@ -87,12 +93,12 @@ func (eb *RabbitMQEventBus) Subscribe(routingKey string, handler func(event []by
 	queueName := fmt.Sprintf("io.opencrafts.gossip-monger.%s", routingKey)
 	// Declare a durable, non-exclusive queue
 	q, err := eb.channel.QueueDeclare(
-		queueName,    // Name, RabbitMQ will generate a unique name
-		true,  // Durable
-		true,  // Delete when unused
-		false, // Not exclusive to this consumer
-		false, // No-wait
-		nil,   // Arguments
+		queueName, // Name, RabbitMQ will generate a unique name
+		true,      // Durable
+		true,      // Delete when unused
+		false,     // Not exclusive to this consumer
+		false,     // No-wait
+		nil,       // Arguments
 	)
 	if err != nil {
 		return err
