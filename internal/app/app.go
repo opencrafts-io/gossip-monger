@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/OneSignal/onesignal-go-api/v5"
@@ -14,6 +15,7 @@ import (
 	"github.com/opencrafts-io/gossip-monger/internal/config"
 	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
+	"github.com/resend/resend-go/v2"
 )
 
 type GossipMonger struct {
@@ -22,6 +24,7 @@ type GossipMonger struct {
 	logger               *slog.Logger
 	userEventBus         *eventbus.UserEventBus
 	notificationEventBus *eventbus.NotificationEventBus
+	emailEventBus        *eventbus.EmailEventBus
 }
 
 // Creates a new gossip-monger application ready to service requests
@@ -55,12 +58,12 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		cfg.RabbitMQConfig.RabbitMQPort,
 	)
 
-	bus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "verisafe.exchange")
+	bus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "verisafe.exchange", eventbus.FanoutExchangeType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}
 
-	nbus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "gossip-monger.exchange")
+	nbus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "gossip-monger.exchange", eventbus.DirectExchangeType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}
@@ -79,12 +82,17 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 	}
 	notificationEventBus := eventbus.NewNotificationEventBus(nbus, connPool, oneSignalService, logger)
 
+	client := resend.NewClient(os.Getenv("RESEND_API_KEY"))
+
+	emailEventBus := eventbus.NewEmailEventBus(nbus, connPool, client, logger)
+
 	return &GossipMonger{
 		pool:                 connPool,
 		config:               cfg,
 		logger:               logger,
 		userEventBus:         userEventBus,
 		notificationEventBus: notificationEventBus,
+		emailEventBus:        emailEventBus,
 	}, nil
 }
 
@@ -95,6 +103,7 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 	// Setup verisafe event subscriptions
 	gm.userEventBus.SetupEventSubscriptions(ctx)
 	gm.notificationEventBus.SetupEventSubscriptions(ctx)
+	gm.emailEventBus.SetupEventSubscriptions(ctx)
 
 	router := LoadRoutes(gm)
 

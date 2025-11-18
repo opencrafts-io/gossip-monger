@@ -5,11 +5,125 @@
 package repository
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type RecipientType string
+
+const (
+	RecipientTypeCc      RecipientType = "cc"
+	RecipientTypeBcc     RecipientType = "bcc"
+	RecipientTypePrimary RecipientType = "primary"
+)
+
+func (e *RecipientType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RecipientType(s)
+	case string:
+		*e = RecipientType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RecipientType: %T", src)
+	}
+	return nil
+}
+
+type NullRecipientType struct {
+	RecipientType RecipientType `json:"recipient_type"`
+	Valid         bool          `json:"valid"` // Valid is true if RecipientType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRecipientType) Scan(value interface{}) error {
+	if value == nil {
+		ns.RecipientType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RecipientType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRecipientType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RecipientType), nil
+}
+
+type SentStatus string
+
+const (
+	SentStatusPending   SentStatus = "pending"
+	SentStatusScheduled SentStatus = "scheduled"
+	SentStatusDelivered SentStatus = "delivered"
+	SentStatusFailed    SentStatus = "failed"
+)
+
+func (e *SentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SentStatus(s)
+	case string:
+		*e = SentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullSentStatus struct {
+	SentStatus SentStatus `json:"sent_status"`
+	Valid      bool       `json:"valid"` // Valid is true if SentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.SentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SentStatus), nil
+}
+
+type Email struct {
+	ID              uuid.UUID        `json:"id"`
+	ExternalID      pgtype.UUID      `json:"external_id"`
+	Subject         *string          `json:"subject"`
+	Body            *string          `json:"body"`
+	ReplyTo         *string          `json:"reply_to"`
+	SourceServiceID *string          `json:"source_service_id"`
+	SourceUserID    pgtype.UUID      `json:"source_user_id"`
+	SourceUserEmail *string          `json:"source_user_email"`
+	ScheduleFor     pgtype.Timestamp `json:"schedule_for"`
+	DeliveredAt     pgtype.Timestamp `json:"delivered_at"`
+	DeliveryStatus  SentStatus       `json:"delivery_status"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
+type EmailRecipient struct {
+	ID          uuid.UUID        `json:"id"`
+	EmailID     uuid.UUID        `json:"email_id"`
+	RecipientID uuid.UUID        `json:"recipient_id"`
+	RecieveType RecipientType    `json:"recieve_type"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+}
 
 type Notification struct {
 	ID                      uuid.UUID        `json:"id"`
