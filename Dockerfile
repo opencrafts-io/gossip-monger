@@ -9,7 +9,7 @@ WORKDIR /src
 COPY . .
 
 
-RUN go build -o /app -ldflags "-s -w" . 
+RUN go build -o /app -ldflags "-s -w" ./cmd/api
 
 
 FROM alpine:3.18 AS final
