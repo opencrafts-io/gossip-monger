@@ -1,9 +1,10 @@
-name: Build, Push, and Update notifications Deployment
+name: Build, Push, and Update gossip monger Deployment
 
 on:
   push:
     branches:
-      - "**"
+      - main
+      - staging
 
 jobs:
   build-push-update-infraops:
