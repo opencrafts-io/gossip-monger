@@ -1,4 +1,4 @@
-iname: Discord Push Notification
+name: Discord Push Notification
 
 on:
   pull_request:
