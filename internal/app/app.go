@@ -58,12 +58,21 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		cfg.RabbitMQConfig.RabbitMQPort,
 	)
 
-	bus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "verisafe.exchange", eventbus.FanoutExchangeType)
+	bus, err := eventbus.NewRabbitMQEventBus(
+		rabbitMQConnString,
+		"verisafe.exchange",
+		eventbus.FanoutExchangeType, logger,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}
 
-	nbus, err := eventbus.NewRabbitMQEventBus(rabbitMQConnString, "gossip-monger.exchange", eventbus.DirectExchangeType)
+	nbus, err := eventbus.NewRabbitMQEventBus(
+		rabbitMQConnString,
+		"gossip-monger.exchange",
+		eventbus.DirectExchangeType,
+		logger,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
 	}
@@ -101,9 +110,9 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 	database.RunGooseMigrations(gm.logger, gm.pool)
 
 	// Setup verisafe event subscriptions
-	gm.userEventBus.SetupEventSubscriptions(ctx)
-	gm.notificationEventBus.SetupEventSubscriptions(ctx)
-	gm.emailEventBus.SetupEventSubscriptions(ctx)
+	gm.userEventBus.SetupEventSubscriptions()
+	gm.notificationEventBus.SetupEventSubscriptions()
+	gm.emailEventBus.SetupEventSubscriptions()
 
 	router := LoadRoutes(gm)
 
@@ -147,6 +156,9 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 	defer cancel()
 
 	srv.Shutdown(sCtx)
+	gm.userEventBus.Close()
+	gm.notificationEventBus.Close()
+	gm.emailEventBus.Close()
 
 	return nil
 
