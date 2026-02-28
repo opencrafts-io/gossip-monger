@@ -10,79 +10,83 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	pushNotificationRoutingKey    = "gossip-monger.notification.requested"
+	expectedNotificationEventType = "notification.requested"
+)
+
 // NotificationEventBus provides a type-safe API for notification events.
 type NotificationEventBus struct {
 	bus                      EventBus
 	logger                   *slog.Logger
-	pool                     *pgxpool.Pool
 	notificationEventHandler *NotificationEventHandler
-	onesignalClient          *onesignal.APIClient
+
+	// ctx is a long-lived context owned by NotificationEventBus, used by
+	// subscriber handlers. It is independent of any caller context so that
+	// handlers remain active for the lifetime of the bus.
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewNotificationEventBus creates a new NotificationEventBus instance.
 func NewNotificationEventBus(
-	bus EventBus, pool *pgxpool.Pool,
+	bus EventBus,
+	pool *pgxpool.Pool,
 	onesignalClient *onesignal.APIClient,
 	logger *slog.Logger,
 ) *NotificationEventBus {
-
-	notificationEventHandler := NewNotificationEventHandler(pool, onesignalClient, logger)
-
-	b := &NotificationEventBus{
+	ctx, cancel := context.WithCancel(context.Background())
+	return &NotificationEventBus{
 		bus:                      bus,
-		pool:                     pool,
 		logger:                   logger,
-		notificationEventHandler: notificationEventHandler,
-		onesignalClient:          onesignalClient,
+		notificationEventHandler: NewNotificationEventHandler(pool, onesignalClient, logger),
+		ctx:                      ctx,
+		cancel:                   cancel,
 	}
-
-	return b
 }
 
-// SetupEventSubscriptions sets up all event subscriptions for the application
-func (b *NotificationEventBus) SetupEventSubscriptions(ctx context.Context) error {
-	// Subscribe to user created events
-	if err := b.SubscribePushNotificationRequested(
-		ctx,
-		b.notificationEventHandler.HandlerPushNotificationSendRequested,
-	); err != nil {
-		return fmt.Errorf("failed to subscribe to notification push  events: %w", err)
+// SetupEventSubscriptions registers all event subscriptions for the application.
+func (b *NotificationEventBus) SetupEventSubscriptions() error {
+	if err := b.subscribePushNotificationRequested(); err != nil {
+		return fmt.Errorf("failed to subscribe to notification push events: %w", err)
 	}
-	b.logger.Info("Gossip notification subscriptions set up successfully")
+	b.logger.Info("notification event subscriptions set up successfully")
 	return nil
 }
 
-// SubscribePushNotificationRequested listens for services requesting push notifications
-// to users
-// It handles unmarshaling and passes a typed struct to the handler.
-func (b *NotificationEventBus) SubscribePushNotificationRequested(ctx context.Context,
-	handler func(context context.Context, event NotificationEvent),
-) error {
-	// Use the same routing key as the publisher
-	routingKey := "gossip-monger.notification.requested"
+// Close cancels the internal context, signalling all active handlers to stop.
+func (b *NotificationEventBus) Close() {
+	b.cancel()
+}
 
-	// Subscribe to the generic event bus, and wrap the handler to unmarshal the data
-	return b.bus.Subscribe(routingKey, func(data []byte) {
+// subscribePushNotificationRequested listens for services requesting push
+// notifications to be sent to users.
+func (b *NotificationEventBus) subscribePushNotificationRequested() error {
+	return b.bus.Subscribe(pushNotificationRoutingKey, func(data []byte) {
 		var event NotificationEvent
 		if err := json.Unmarshal(data, &event); err != nil {
-			// Log the error but don't stop the consumer
-			// A dead-letter queue or logging service could be used here
-			b.logger.Error("Error unmarshalling data", slog.Any("error", err))
+			b.logger.Error("failed to unmarshal notification event",
+				slog.String("routing_key", pushNotificationRoutingKey),
+				slog.Any("error", err),
+			)
 			return
 		}
 
-		if event.Metadata.EventType != "notification.requested" {
-			b.logger.Error(fmt.Sprintf(
-				"Wrong metadata event type expected notification.requested instead got %s",
-				event.Metadata.EventType,
-			),
-				slog.String("requested", "notification.requested"),
-				// slog.String("hello", event.User.ID.String()),
-				/// Log that the operation was aborted by the service to maintain consistency
+		if event.Metadata.EventType != expectedNotificationEventType {
+			b.logger.Error("notification event rejected: unexpected event type",
+				slog.String("routing_key", pushNotificationRoutingKey),
+				slog.String("expected_event_type", expectedNotificationEventType),
+				slog.String("actual_event_type", event.Metadata.EventType),
 				slog.Bool("abort", true),
 			)
 			return
 		}
-		handler(ctx, event)
+
+		b.notificationEventHandler.HandlerPushNotificationSendRequested(b.ctx, event)
+
+		b.logger.Info("notification event handled successfully",
+			slog.String("event_type", event.Metadata.EventType),
+		)
 	})
 }
+
