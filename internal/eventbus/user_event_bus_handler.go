@@ -2,9 +2,10 @@ package eventbus
 
 import (
 	"context"
+	"log/slog"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/internal/repository"
-	"log/slog"
 )
 
 // UserEventHandler handles user events with database access
@@ -14,7 +15,10 @@ type UserEventHandler struct {
 }
 
 // NewUserEventHandler creates a new UserEventHandler instance
-func NewUserEventHandler(pool *pgxpool.Pool, logger *slog.Logger) *UserEventHandler {
+func NewUserEventHandler(
+	pool *pgxpool.Pool,
+	logger *slog.Logger,
+) *UserEventHandler {
 	return &UserEventHandler{
 		pool:   pool,
 		logger: logger,
@@ -22,10 +26,16 @@ func NewUserEventHandler(pool *pgxpool.Pool, logger *slog.Logger) *UserEventHand
 }
 
 // HandleUserCreated processes user created events
-func (h *UserEventHandler) HandleUserCreated(ctx context.Context, event UserEvent) {
+func (h *UserEventHandler) HandleUserCreated(
+	ctx context.Context,
+	event UserEvent,
+) {
 	conn, err := h.pool.Acquire(ctx)
 	if err != nil {
-		h.logger.Error("Failed to acquire connection from pool", slog.String("error", err.Error()))
+		h.logger.Error(
+			"Failed to acquire connection from pool",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -40,9 +50,11 @@ func (h *UserEventHandler) HandleUserCreated(ctx context.Context, event UserEven
 		Username: &event.User.Name,
 		Phone:    event.User.Phone,
 	})
-
 	if err != nil {
-		h.logger.Error("Failed to create user from the mesage queue", slog.String("error", err.Error()))
+		h.logger.Error(
+			"Failed to create user from the mesage queue",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -59,14 +71,19 @@ func (h *UserEventHandler) HandleUserCreated(ctx context.Context, event UserEven
 		slog.String("user_id", created.ID.String()),
 		slog.String("username", *created.Username),
 	)
-
 }
 
 // HandleUserUpdated processes user updated events
-func (h *UserEventHandler) HandleUserUpdated(ctx context.Context, event UserEvent) {
+func (h *UserEventHandler) HandleUserUpdated(
+	ctx context.Context,
+	event UserEvent,
+) {
 	conn, err := h.pool.Acquire(ctx)
 	if err != nil {
-		h.logger.Error("Failed to acquire connection from pool", slog.String("error", err.Error()))
+		h.logger.Error(
+			"Failed to acquire connection from pool",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -78,13 +95,14 @@ func (h *UserEventHandler) HandleUserUpdated(ctx context.Context, event UserEven
 		ID:       event.User.ID,
 		Email:    event.User.Email,
 		Name:     event.User.Name,
-		Username: event.User.Name,
-		Phone:    *event.User.Phone,
+		Username: derefString(event.User.Username),
+		Phone:    derefString(event.User.Phone),
 	})
-
 	if err != nil {
-		h.logger.Error("Failed to update user requested by the verisafe mesage queue",
-			slog.String("error", err.Error()))
+		h.logger.Error(
+			"Failed to update user requested by the verisafe mesage queue",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -97,17 +115,24 @@ func (h *UserEventHandler) HandleUserUpdated(ctx context.Context, event UserEven
 		return
 	}
 
-	h.logger.Info("Successfully updated user requested by the verisafe message queue",
+	h.logger.Info(
+		"Successfully updated user requested by the verisafe message queue",
 		slog.String("user_id", created.ID.String()),
 		slog.String("username", *created.Username),
 	)
 }
 
 // HandleUserDeleted processes user deleted events
-func (h *UserEventHandler) HandleUserDeleted(ctx context.Context, event UserEvent) {
+func (h *UserEventHandler) HandleUserDeleted(
+	ctx context.Context,
+	event UserEvent,
+) {
 	conn, err := h.pool.Acquire(ctx)
 	if err != nil {
-		h.logger.Error("Failed to acquire connection from pool", slog.String("error", err.Error()))
+		h.logger.Error(
+			"Failed to acquire connection from pool",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -116,10 +141,11 @@ func (h *UserEventHandler) HandleUserDeleted(ctx context.Context, event UserEven
 	repo := repository.New(tx)
 
 	err = repo.DeleteUserByID(ctx, event.User.ID)
-
 	if err != nil {
-		h.logger.Error("Failed to delete user requested by the verisafe mesage queue",
-			slog.String("error", err.Error()))
+		h.logger.Error(
+			"Failed to delete user requested by the verisafe mesage queue",
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -132,9 +158,16 @@ func (h *UserEventHandler) HandleUserDeleted(ctx context.Context, event UserEven
 		return
 	}
 
-	h.logger.Info("Successfully deleted user requested from the verisafe message queue",
+	h.logger.Info(
+		"Successfully deleted user requested from the verisafe message queue",
 		slog.String("user_id", event.User.ID.String()),
 		slog.String("username", *event.User.Username),
 	)
+}
 
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
