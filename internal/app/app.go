@@ -12,6 +12,7 @@ import (
 	"github.com/OneSignal/onesignal-go-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/database"
+	"github.com/opencrafts-io/gossip-monger/internal/broker"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
 	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
@@ -19,6 +20,7 @@ import (
 )
 
 type GossipMonger struct {
+	rabbitMQConn         broker.Connection
 	pool                 *pgxpool.Pool
 	config               *config.Config
 	logger               *slog.Logger
@@ -28,8 +30,10 @@ type GossipMonger struct {
 }
 
 // Creates a new gossip-monger application ready to service requests
-func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger, error) {
-
+func NewGossipMongerApp(
+	logger *slog.Logger,
+	cfg *config.Config,
+) (*GossipMonger, error) {
 	dbConfig, err := pgxpool.ParseConfig(fmt.Sprintf(
 		"postgresql://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.DatabaseConfig.DatabaseUser,
@@ -44,7 +48,9 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 
 	dbConfig.MaxConns = cfg.DatabaseConfig.DatabasePoolMaxConnections
 	dbConfig.MinConns = cfg.DatabaseConfig.DatabasePoolMinConnections
-	dbConfig.MaxConnLifetime = time.Hour * time.Duration(cfg.DatabaseConfig.DatabasePoolMaxConnectionLifetime)
+	dbConfig.MaxConnLifetime = time.Hour * time.Duration(
+		cfg.DatabaseConfig.DatabasePoolMaxConnectionLifetime,
+	)
 
 	connPool, err := pgxpool.NewWithConfig(context.Background(), dbConfig)
 	if err != nil {
@@ -58,13 +64,27 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		cfg.RabbitMQConfig.RabbitMQPort,
 	)
 
+	rabbitMQConn, err := broker.NewRabbitMQConnection(
+		context.Background(),
+		rabbitMQConnString,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to connect to rabbit mq  event bus %w",
+			err,
+		)
+	}
+
 	bus, err := eventbus.NewRabbitMQEventBus(
 		rabbitMQConnString,
 		"verisafe.exchange",
 		eventbus.FanoutExchangeType, logger,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
+		return nil, fmt.Errorf(
+			"failed to connect to rabbit mq  event bus %w",
+			err,
+		)
 	}
 
 	nbus, err := eventbus.NewRabbitMQEventBus(
@@ -74,7 +94,10 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		logger,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
+		return nil, fmt.Errorf(
+			"failed to connect to rabbit mq  event bus %w",
+			err,
+		)
 	}
 
 	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
@@ -85,17 +108,26 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 	oneSignalService := onesignal.NewAPIClient(onesignalConfig)
 
 	if oneSignalService == nil {
-		logger.Error("Failed to initialize onesignal api client", slog.Any("oneSignalService", oneSignalService))
+		logger.Error(
+			"Failed to initialize onesignal api client",
+			slog.Any("oneSignalService", oneSignalService),
+		)
 		panic("Failed to initialize one signal service")
 
 	}
-	notificationEventBus := eventbus.NewNotificationEventBus(nbus, connPool, oneSignalService, logger)
+	notificationEventBus := eventbus.NewNotificationEventBus(
+		nbus,
+		connPool,
+		oneSignalService,
+		logger,
+	)
 
 	client := resend.NewClient(os.Getenv("RESEND_API_KEY"))
 
 	emailEventBus := eventbus.NewEmailEventBus(nbus, connPool, client, logger)
 
 	return &GossipMonger{
+		rabbitMQConn:         rabbitMQConn,
 		pool:                 connPool,
 		config:               cfg,
 		logger:               logger,
@@ -106,7 +138,6 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 }
 
 func (gm *GossipMonger) Start(ctx context.Context) error {
-
 	database.RunGooseMigrations(gm.logger, gm.pool)
 
 	// Setup verisafe event subscriptions
@@ -156,10 +187,12 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 	defer cancel()
 
 	srv.Shutdown(sCtx)
+	if err := gm.rabbitMQConn.Close(); err != nil {
+		gm.logger.Error("Failed to close rabbitmq connection")
+	}
 	gm.userEventBus.Close()
 	gm.notificationEventBus.Close()
 	gm.emailEventBus.Close()
 
 	return nil
-
 }
