@@ -16,13 +16,17 @@ type MessageConsumer interface {
 
 // Consumer implements MessageConsumer
 type Consumer struct {
-	conn Connection
+	conn          Connection
+	prefetchCount int
 }
 
-// NewConsumer creates a new Consumer instance
-func NewConsumer(conn Connection) *Consumer {
+// NewConsumer creates a new Consumer instance with configurable prefetch count
+// prefetchCount limits the number of unacknowledged messages delivered to this consumer
+// Recommended: 1 for serial processing, higher for parallel processing
+func NewConsumer(conn Connection, prefetchCount int) *Consumer {
 	return &Consumer{
-		conn: conn,
+		conn:          conn,
+		prefetchCount: prefetchCount,
 	}
 }
 
@@ -37,6 +41,20 @@ func (c *Consumer) Consume(
 		err := fmt.Errorf("channel is nil")
 		slog.Error("cannot consume messages", "error", err)
 		return err
+	}
+
+	err := ch.Qos(
+		c.prefetchCount, // prefetch count
+		0,               // prefetch size (0 = no size limit)
+		false,           // global (false = apply only to this consumer)
+	)
+	if err != nil {
+		slog.Error("failed to set QoS",
+			"queue", queue,
+			"prefetch_count", c.prefetchCount,
+			"error", err,
+		)
+		return fmt.Errorf("failed to set QoS: %w", err)
 	}
 
 	// Start consuming messages
