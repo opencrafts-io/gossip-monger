@@ -31,6 +31,7 @@ type GossipMonger struct {
 
 	// Services
 	pushNotificationSvc service.PushNotificationService
+	userService         service.UserService
 }
 
 // Creates a new gossip-monger application ready to service requests
@@ -99,12 +100,15 @@ func NewGossipMongerApp(
 		oneSignalService,
 	)
 
+	userService := service.NewUserService(connPool, logger)
+
 	return &GossipMonger{
 		rabbitMQConn:        rabbitMQConn,
 		pool:                connPool,
 		config:              cfg,
 		logger:              logger,
 		pushNotificationSvc: pnsvc,
+		userService:         userService,
 	}, nil
 }
 
@@ -170,12 +174,30 @@ func (gm *GossipMonger) startConsumers(ctx context.Context) {
 		gm.pushNotificationSvc,
 		gm.logger,
 	)
+
+	userConsumer := consumers.NewUserConsumer(
+		gm.rabbitMQConn,
+		gm.userService,
+		gm.logger,
+	)
+
 	gm.consumerWg.Add(1)
 	go func() {
 		defer gm.consumerWg.Done()
 		if err := pushNotificationConsumer.Start(ctx); err != nil {
 			gm.logger.Error(
 				"Push notification consumer stopped",
+				slog.Any("error", err),
+			)
+		}
+	}()
+
+	gm.consumerWg.Add(1)
+	go func() {
+		defer gm.consumerWg.Done()
+		if err := userConsumer.Start(ctx); err != nil {
+			gm.logger.Error(
+				"User events consumer stopped",
 				slog.Any("error", err),
 			)
 		}
