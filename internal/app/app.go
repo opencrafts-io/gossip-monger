@@ -6,27 +6,31 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
+	"sync"
 	"time"
 
 	"github.com/OneSignal/onesignal-go-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/database"
 	"github.com/opencrafts-io/gossip-monger/internal/broker"
+	"github.com/opencrafts-io/gossip-monger/internal/broker/consumers"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
-	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
-	"github.com/resend/resend-go/v2"
+	"github.com/opencrafts-io/gossip-monger/internal/repository"
+	"github.com/opencrafts-io/gossip-monger/internal/service"
 )
 
 type GossipMonger struct {
-	rabbitMQConn         broker.Connection
-	pool                 *pgxpool.Pool
-	config               *config.Config
-	logger               *slog.Logger
-	userEventBus         *eventbus.UserEventBus
-	notificationEventBus *eventbus.NotificationEventBus
-	emailEventBus        *eventbus.EmailEventBus
+	rabbitMQConn broker.Connection
+	pool         *pgxpool.Pool
+	config       *config.Config
+	logger       *slog.Logger
+	// Track all running consumers for graceful shutdown
+	consumerWg      sync.WaitGroup
+	cancelConsumers context.CancelFunc
+
+	// Services
+	pushNotificationSvc service.PushNotificationService
 }
 
 // Creates a new gossip-monger application ready to service requests
@@ -74,33 +78,6 @@ func NewGossipMongerApp(
 			err,
 		)
 	}
-
-	bus, err := eventbus.NewRabbitMQEventBus(
-		rabbitMQConnString,
-		"verisafe.exchange",
-		eventbus.FanoutExchangeType, logger,
-	)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to connect to rabbit mq  event bus %w",
-			err,
-		)
-	}
-
-	nbus, err := eventbus.NewRabbitMQEventBus(
-		rabbitMQConnString,
-		"gossip-monger.exchange",
-		eventbus.DirectExchangeType,
-		logger,
-	)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to connect to rabbit mq  event bus %w",
-			err,
-		)
-	}
-
-	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
 	onesignalConfig := onesignal.NewConfiguration()
 	onesignalConfig.AddDefaultHeader("Authorization",
 		fmt.Sprintf("Basic %s", cfg.OneSignalConfig.RestAPIKey),
@@ -115,35 +92,26 @@ func NewGossipMongerApp(
 		panic("Failed to initialize one signal service")
 
 	}
-	notificationEventBus := eventbus.NewNotificationEventBus(
-		nbus,
-		connPool,
-		oneSignalService,
+	querier := repository.New(connPool)
+	pnsvc := service.NewPushNotificationService(
+		querier,
 		logger,
+		oneSignalService,
 	)
 
-	client := resend.NewClient(os.Getenv("RESEND_API_KEY"))
-
-	emailEventBus := eventbus.NewEmailEventBus(nbus, connPool, client, logger)
-
 	return &GossipMonger{
-		rabbitMQConn:         rabbitMQConn,
-		pool:                 connPool,
-		config:               cfg,
-		logger:               logger,
-		userEventBus:         userEventBus,
-		notificationEventBus: notificationEventBus,
-		emailEventBus:        emailEventBus,
+		rabbitMQConn:        rabbitMQConn,
+		pool:                connPool,
+		config:              cfg,
+		logger:              logger,
+		pushNotificationSvc: pnsvc,
 	}, nil
 }
 
 func (gm *GossipMonger) Start(ctx context.Context) error {
 	database.RunGooseMigrations(gm.logger, gm.pool)
 
-	// Setup verisafe event subscriptions
-	gm.userEventBus.SetupEventSubscriptions()
-	gm.notificationEventBus.SetupEventSubscriptions()
-	gm.emailEventBus.SetupEventSubscriptions()
+	gm.startConsumers(ctx)
 
 	router := LoadRoutes(gm)
 
@@ -190,9 +158,38 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 	if err := gm.rabbitMQConn.Close(); err != nil {
 		gm.logger.Error("Failed to close rabbitmq connection")
 	}
-	gm.userEventBus.Close()
-	gm.notificationEventBus.Close()
-	gm.emailEventBus.Close()
+
+	gm.shutDown()
 
 	return nil
+}
+
+func (gm *GossipMonger) startConsumers(ctx context.Context) {
+	pushNotificationConsumer := consumers.NewPushNotificationConsumer(
+		gm.rabbitMQConn,
+		gm.pushNotificationSvc,
+		gm.logger,
+	)
+	gm.consumerWg.Add(1)
+	go func() {
+		defer gm.consumerWg.Done()
+		if err := pushNotificationConsumer.Start(ctx); err != nil {
+			gm.logger.Error(
+				"Push notification consumer stopped",
+				slog.Any("error", err),
+			)
+		}
+	}()
+}
+
+func (gm *GossipMonger) shutDown() {
+	// Close the consumers
+	gm.logger.Info("Shutting down consumers...")
+	gm.cancelConsumers()
+	gm.consumerWg.Wait()
+
+	// Close the rabbitmq connection
+	if err := gm.rabbitMQConn.Close(); err != nil {
+		panic(err)
+	}
 }
