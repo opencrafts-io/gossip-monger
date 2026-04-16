@@ -143,11 +143,9 @@ func (c *Consumer) Consume(
 		case <-ctx.Done():
 			c.logger.Info("consumer stopped", "queue", queue)
 			return ctx.Err()
-		case msg := <-msgs:
-			if msg.Body == nil {
-				err := fmt.Errorf("channel closed")
+		case msg, ok := <-msgs:
+			if !ok {
 				c.logger.Error("consuming failed", "queue", queue, "error", err)
-				return err
 			}
 
 			// Call the handler with the message
