@@ -59,7 +59,7 @@ func (s *userService) Create(ctx context.Context, user repository.User) error {
 
 	s.logger.Info("successfully created user from message queue",
 		slog.String("user_id", created.ID.String()),
-		slog.String("username", *created.Username),
+		slog.String("username", derefString(created.Username)),
 	)
 
 	return nil
@@ -97,7 +97,7 @@ func (s *userService) Update(ctx context.Context, user repository.User) error {
 
 	s.logger.Info("successfully updated user from message queue",
 		slog.String("user_id", updated.ID.String()),
-		slog.String("username", *updated.Username),
+		slog.String("username", derefString(updated.Username)),
 	)
 
 	return nil
