@@ -46,7 +46,7 @@ func (s *userService) Create(ctx context.Context, user repository.User) error {
 		ID:       user.ID,
 		Email:    user.Email,
 		Name:     user.Name,
-		Username: &user.Name,
+		Username: user.Username,
 		Phone:    user.Phone,
 	})
 	if err != nil {
