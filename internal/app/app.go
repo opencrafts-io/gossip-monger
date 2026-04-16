@@ -159,10 +159,6 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 	defer cancel()
 
 	srv.Shutdown(sCtx)
-	if err := gm.rabbitMQConn.Close(); err != nil {
-		gm.logger.Error("Failed to close rabbitmq connection")
-	}
-
 	gm.shutDown()
 
 	return nil
