@@ -121,7 +121,7 @@ func (c *Consumer) Consume(
 	msgs, err := ch.Consume(
 		queue, // queue name
 		"",    // consumer tag (auto-generated)
-		true,  // auto-acknowledge
+		false, // auto-acknowledge
 		false, // exclusive
 		false, // no-local
 		false, // no-wait
@@ -156,7 +156,10 @@ func (c *Consumer) Consume(
 					"queue", queue,
 					"error", err,
 				)
+				msg.Nack(false, true)
 				// Continue consuming, don't stop on handler error
+			} else {
+				msg.Ack(false)
 			}
 		}
 	}
