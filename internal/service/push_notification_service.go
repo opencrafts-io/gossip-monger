@@ -337,7 +337,12 @@ func (pns *pushNotificationService) preparePushPayload(
 	}
 
 	var targetUsers []string
-	targetUsers = append(targetUsers, pushNotification.TargetUserID.String())
+	if pushNotification.TargetUserID.Valid {
+		targetUsers = append(
+			targetUsers,
+			pushNotification.TargetUserID.String(),
+		)
+	}
 
 	if pushNotification.IncludeExternalUserIds != nil {
 		targetUsers = append(
@@ -345,9 +350,11 @@ func (pns *pushNotificationService) preparePushPayload(
 			pushNotification.IncludeExternalUserIds...)
 	}
 
-	notification.SetIncludeAliases(
-		map[string][]string{"external_id": targetUsers},
-	)
+	if len(targetUsers) > 0 {
+		notification.SetIncludeAliases(
+			map[string][]string{"external_id": targetUsers},
+		)
+	}
 
 	if pushNotification.AndroidChannelID != nil {
 		notification.SetAndroidChannelId(*pushNotification.AndroidChannelID)
