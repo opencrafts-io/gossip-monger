@@ -6,30 +6,39 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
+	"sync"
 	"time"
 
 	"github.com/OneSignal/onesignal-go-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/database"
+	"github.com/opencrafts-io/gossip-monger/internal/broker"
+	"github.com/opencrafts-io/gossip-monger/internal/broker/consumers"
 	"github.com/opencrafts-io/gossip-monger/internal/config"
-	"github.com/opencrafts-io/gossip-monger/internal/eventbus"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
-	"github.com/resend/resend-go/v2"
+	"github.com/opencrafts-io/gossip-monger/internal/repository"
+	"github.com/opencrafts-io/gossip-monger/internal/service"
 )
 
 type GossipMonger struct {
-	pool                 *pgxpool.Pool
-	config               *config.Config
-	logger               *slog.Logger
-	userEventBus         *eventbus.UserEventBus
-	notificationEventBus *eventbus.NotificationEventBus
-	emailEventBus        *eventbus.EmailEventBus
+	rabbitMQConn broker.Connection
+	pool         *pgxpool.Pool
+	config       *config.Config
+	logger       *slog.Logger
+	// Track all running consumers for graceful shutdown
+	consumerWg      sync.WaitGroup
+	cancelConsumers context.CancelFunc
+
+	// Services
+	pushNotificationSvc service.PushNotificationService
+	userService         service.UserService
 }
 
 // Creates a new gossip-monger application ready to service requests
-func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger, error) {
-
+func NewGossipMongerApp(
+	logger *slog.Logger,
+	cfg *config.Config,
+) (*GossipMonger, error) {
 	dbConfig, err := pgxpool.ParseConfig(fmt.Sprintf(
 		"postgresql://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.DatabaseConfig.DatabaseUser,
@@ -44,7 +53,9 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 
 	dbConfig.MaxConns = cfg.DatabaseConfig.DatabasePoolMaxConnections
 	dbConfig.MinConns = cfg.DatabaseConfig.DatabasePoolMinConnections
-	dbConfig.MaxConnLifetime = time.Hour * time.Duration(cfg.DatabaseConfig.DatabasePoolMaxConnectionLifetime)
+	dbConfig.MaxConnLifetime = time.Hour * time.Duration(
+		cfg.DatabaseConfig.DatabasePoolMaxConnectionLifetime,
+	)
 
 	connPool, err := pgxpool.NewWithConfig(context.Background(), dbConfig)
 	if err != nil {
@@ -58,26 +69,16 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 		cfg.RabbitMQConfig.RabbitMQPort,
 	)
 
-	bus, err := eventbus.NewRabbitMQEventBus(
+	rabbitMQConn, err := broker.NewRabbitMQConnection(
+		context.Background(),
 		rabbitMQConnString,
-		"verisafe.exchange",
-		eventbus.FanoutExchangeType, logger,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
+		return nil, fmt.Errorf(
+			"failed to connect to rabbit mq  event bus %w",
+			err,
+		)
 	}
-
-	nbus, err := eventbus.NewRabbitMQEventBus(
-		rabbitMQConnString,
-		"gossip-monger.exchange",
-		eventbus.DirectExchangeType,
-		logger,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to rabbit mq  event bus %w", err)
-	}
-
-	userEventBus := eventbus.NewUserEventBus(bus, connPool, logger)
 	onesignalConfig := onesignal.NewConfiguration()
 	onesignalConfig.AddDefaultHeader("Authorization",
 		fmt.Sprintf("Basic %s", cfg.OneSignalConfig.RestAPIKey),
@@ -85,34 +86,36 @@ func NewGossipMongerApp(logger *slog.Logger, cfg *config.Config) (*GossipMonger,
 	oneSignalService := onesignal.NewAPIClient(onesignalConfig)
 
 	if oneSignalService == nil {
-		logger.Error("Failed to initialize onesignal api client", slog.Any("oneSignalService", oneSignalService))
+		logger.Error(
+			"Failed to initialize onesignal api client",
+			slog.Any("oneSignalService", oneSignalService),
+		)
 		panic("Failed to initialize one signal service")
 
 	}
-	notificationEventBus := eventbus.NewNotificationEventBus(nbus, connPool, oneSignalService, logger)
+	querier := repository.New(connPool)
+	pnsvc := service.NewPushNotificationService(
+		querier,
+		logger,
+		oneSignalService,
+	)
 
-	client := resend.NewClient(os.Getenv("RESEND_API_KEY"))
-
-	emailEventBus := eventbus.NewEmailEventBus(nbus, connPool, client, logger)
+	userService := service.NewUserService(connPool, logger)
 
 	return &GossipMonger{
-		pool:                 connPool,
-		config:               cfg,
-		logger:               logger,
-		userEventBus:         userEventBus,
-		notificationEventBus: notificationEventBus,
-		emailEventBus:        emailEventBus,
+		rabbitMQConn:        rabbitMQConn,
+		pool:                connPool,
+		config:              cfg,
+		logger:              logger,
+		pushNotificationSvc: pnsvc,
+		userService:         userService,
 	}, nil
 }
 
 func (gm *GossipMonger) Start(ctx context.Context) error {
-
 	database.RunGooseMigrations(gm.logger, gm.pool)
 
-	// Setup verisafe event subscriptions
-	gm.userEventBus.SetupEventSubscriptions()
-	gm.notificationEventBus.SetupEventSubscriptions()
-	gm.emailEventBus.SetupEventSubscriptions()
+	gm.startConsumers(ctx)
 
 	router := LoadRoutes(gm)
 
@@ -156,10 +159,57 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 	defer cancel()
 
 	srv.Shutdown(sCtx)
-	gm.userEventBus.Close()
-	gm.notificationEventBus.Close()
-	gm.emailEventBus.Close()
+	gm.shutDown()
 
 	return nil
+}
 
+func (gm *GossipMonger) startConsumers(ctx context.Context) {
+	pushNotificationConsumer := consumers.NewPushNotificationConsumer(
+		gm.rabbitMQConn,
+		gm.pushNotificationSvc,
+		gm.logger,
+	)
+
+	userConsumer := consumers.NewUserConsumer(
+		gm.rabbitMQConn,
+		gm.userService,
+		gm.logger,
+	)
+
+	gm.consumerWg.Add(1)
+	go func() {
+		defer gm.consumerWg.Done()
+		if err := pushNotificationConsumer.Start(ctx); err != nil {
+			gm.logger.Error(
+				"Push notification consumer stopped",
+				slog.Any("error", err),
+			)
+		}
+	}()
+
+	gm.consumerWg.Add(1)
+	go func() {
+		defer gm.consumerWg.Done()
+		if err := userConsumer.Start(ctx); err != nil {
+			gm.logger.Error(
+				"User events consumer stopped",
+				slog.Any("error", err),
+			)
+		}
+	}()
+}
+
+func (gm *GossipMonger) shutDown() {
+	// Close the consumers
+	gm.logger.Info("Shutting down consumers...")
+	if gm.cancelConsumers != nil {
+		gm.cancelConsumers()
+	}
+	gm.consumerWg.Wait()
+
+	// Close the rabbitmq connection
+	if err := gm.rabbitMQConn.Close(); err != nil {
+		panic(err)
+	}
 }

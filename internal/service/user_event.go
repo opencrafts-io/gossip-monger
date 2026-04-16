@@ -1,4 +1,4 @@
-package eventbus
+package service
 
 import (
 	"time"
@@ -6,7 +6,6 @@ import (
 	"github.com/opencrafts-io/gossip-monger/internal/repository"
 )
 
-// UserEventMetadata contains crucial information about the event itself.
 type UserEventMetadata struct {
 	EventType       string    `json:"event_type"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -14,7 +13,6 @@ type UserEventMetadata struct {
 	RequestID       string    `json:"request_id"`
 }
 
-// UserEvent defines the payload for user-related events.
 type UserEvent struct {
 	User     repository.User   `json:"user"`
 	Metadata UserEventMetadata `json:"meta"`
