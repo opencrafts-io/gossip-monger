@@ -270,6 +270,9 @@ func (pns *pushNotificationService) preparePushPayload(
 	}
 	notification.SetSubtitle(*subtitle)
 
+	if pushNotification.Contents == nil {
+		return nil, errors.New("contents are required for push notifictions.")
+	}
 	// set the contents
 	var rawContents map[string]string
 	if err := json.Unmarshal(pushNotification.Contents, &rawContents); err != nil {
