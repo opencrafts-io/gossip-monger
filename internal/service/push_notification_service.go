@@ -442,7 +442,8 @@ func (pns *pushNotificationService) preparePushPayload(
 func (pns *pushNotificationService) hasTargeting(
 	n repository.Notification,
 ) bool {
-	return len(n.IncludedSegments) > 0 ||
+	return n.TargetUserID.Valid ||
+		len(n.IncludedSegments) > 0 ||
 		len(n.ExcludedSegments) > 0 ||
 		len(n.IncludePlayerIds) > 0 ||
 		len(n.IncludeExternalUserIds) > 0 ||
