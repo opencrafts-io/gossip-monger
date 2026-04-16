@@ -147,12 +147,8 @@ func enrichNotificationFromResponse(
 ) {
 	push.OnesignalResponse = rawResponse
 
-	println(string(rawResponse))
-
 	if apiErr != nil {
 		errorStr := apiErr.Error()
-		fmt.Println(errorStr)
-
 		push.OnesignalError = &errorStr
 		return
 	}
