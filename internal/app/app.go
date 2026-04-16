@@ -203,7 +203,9 @@ func (gm *GossipMonger) startConsumers(ctx context.Context) {
 func (gm *GossipMonger) shutDown() {
 	// Close the consumers
 	gm.logger.Info("Shutting down consumers...")
-	gm.cancelConsumers()
+	if gm.cancelConsumers != nil {
+		gm.cancelConsumers()
+	}
 	gm.consumerWg.Wait()
 
 	// Close the rabbitmq connection
