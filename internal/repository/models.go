@@ -6,10 +6,55 @@ package repository
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type EmailDeliveryEvent struct {
+	ID            uuid.UUID          `json:"id"`
+	DispatchID    uuid.UUID          `json:"dispatch_id"`
+	ResendEmailID string             `json:"resend_email_id"`
+	EventType     string             `json:"event_type"`
+	Recipient     *string            `json:"recipient"`
+	RawPayload    json.RawMessage    `json:"raw_payload"`
+	OccurredAt    pgtype.Timestamptz `json:"occurred_at"`
+	RecordedAt    pgtype.Timestamptz `json:"recorded_at"`
+}
+
+type EmailDispatch struct {
+	ID             uuid.UUID          `json:"id"`
+	EmailRequestID uuid.UUID          `json:"email_request_id"`
+	ResendEmailID  *string            `json:"resend_email_id"`
+	ResendPayload  json.RawMessage    `json:"resend_payload"`
+	Status         string             `json:"status"`
+	HttpStatusCode *int32             `json:"http_status_code"`
+	ResendError    *string            `json:"resend_error"`
+	DispatchedAt   pgtype.Timestamptz `json:"dispatched_at"`
+}
+
+type EmailRequest struct {
+	ID             uuid.UUID          `json:"id"`
+	ServiceID      string             `json:"service_id"`
+	QueueMessageID string             `json:"queue_message_id"`
+	Exchange       string             `json:"exchange"`
+	RoutingKey     string             `json:"routing_key"`
+	FromAddress    string             `json:"from_address"`
+	ReplyTo        *string            `json:"reply_to"`
+	ToAddresses    []string           `json:"to_addresses"`
+	CcAddresses    []string           `json:"cc_addresses"`
+	BccAddresses   []string           `json:"bcc_addresses"`
+	Subject        string             `json:"subject"`
+	BodyHtml       *string            `json:"body_html"`
+	BodyText       *string            `json:"body_text"`
+	Attachments    json.RawMessage    `json:"attachments"`
+	TemplateID     *string            `json:"template_id"`
+	TemplateVars   json.RawMessage    `json:"template_vars"`
+	Status         string             `json:"status"`
+	ReceivedAt     pgtype.Timestamptz `json:"received_at"`
+	ProcessedAt    *time.Time         `json:"processed_at"`
+}
 
 type Notification struct {
 	ID                      uuid.UUID        `json:"id"`
@@ -73,6 +118,14 @@ type Notification struct {
 	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
 	SentAt                  pgtype.Timestamp `json:"sent_at"`
 	DeliveredAt             pgtype.Timestamp `json:"delivered_at"`
+}
+
+type Service struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Description *string            `json:"description"`
+	IsActive    bool               `json:"is_active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {

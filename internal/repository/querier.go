@@ -13,10 +13,18 @@ import (
 
 type Querier interface {
 	CleanupOldNotifications(ctx context.Context) error
+	// Records an email dispatch to the email sending service for compliance
+	// purposes
+	CreateEmailDispatch(ctx context.Context, arg CreateEmailDispatchParams) (EmailDispatch, error)
+	// Persists an email request to the database for replayability
+	CreateEmailRequest(ctx context.Context, arg CreateEmailRequestParams) (EmailRequest, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteNotification(ctx context.Context, id uuid.UUID) error
 	DeleteUserByID(ctx context.Context, id uuid.UUID) error
+	GetEmailRequestByID(ctx context.Context, id uuid.UUID) (EmailRequest, error)
+	// Orders the time it was recieved ie the most previous
+	GetEmailRequestByService(ctx context.Context, serviceID string) ([]EmailRequest, error)
 	GetNotificationByID(ctx context.Context, id uuid.UUID) (Notification, error)
 	GetNotificationByOneSignalID(ctx context.Context, onesignalNotificationID *string) (Notification, error)
 	GetNotificationStats(ctx context.Context, targetUserID pgtype.UUID) (GetNotificationStatsRow, error)
