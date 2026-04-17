@@ -128,11 +128,15 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 		return fmt.Errorf("failed to persist email dispatch record: %w", err)
 	}
 
+	finalStatus := "dispatched"
+	if resendErr != nil {
+		finalStatus = "failed"
+	}
 	_, err = repo.UpdateEmailRequestStatusByID(
 		ctx,
 		repository.UpdateEmailRequestStatusByIDParams{
 			ID:     emailReq.ID,
-			Status: "dispatched",
+			Status: finalStatus,
 		},
 	)
 	if err != nil {
@@ -155,13 +159,12 @@ func (es *emailService) emailToResendEmailRequest(
 		return nil, fmt.Errorf("from address is required")
 	}
 
-	if !strings.HasSuffix(email.FromAddress, "@posta.opencrafts.io") {
-		return nil, fmt.Errorf(
-			"from address should conform to <username>@opencrafts.io",
-		)
+	const allowedSenderDomain = "@posta.opencrafts.io"
+	if !strings.HasSuffix(email.FromAddress, allowedSenderDomain) {
+		return nil, fmt.Errorf("from address must end with %s", allowedSenderDomain)
 	}
 
-	if len(email.ToAddresses) == 0 {
+	if len(email.ToAddresses) == 0 && len(email.CcAddresses) == 0 && len(email.BccAddresses) == 0 {
 		return nil, fmt.Errorf("at least one recipient is required")
 	}
 

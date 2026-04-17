@@ -32,6 +32,7 @@ select *
 from email_requests
 where service_id = $1
 order by received_at desc
+limit $2 offset $3
 ;
 
 -- name: GetEmailRequestByID :one
