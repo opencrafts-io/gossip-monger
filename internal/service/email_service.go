@@ -160,7 +160,7 @@ func (es *emailService) emailToResendEmailRequest(
 		return nil, fmt.Errorf("from address must end with %s", allowedSenderDomain)
 	}
 
-	if len(email.ToAddresses) == 0 {
+	if len(email.ToAddresses) == 0 && len(email.CcAddresses) == 0 && len(email.BccAddresses) == 0 {
 		return nil, fmt.Errorf("at least one recipient is required")
 	}
 
