@@ -20,13 +20,15 @@ type MessagePublisher interface {
 
 // Publisher implements MessagePublisher
 type Publisher struct {
-	conn Connection
+	conn   Connection
+	logger *slog.Logger
 }
 
 // NewPublisher creates a new Publisher instance
-func NewPublisher(conn Connection) *Publisher {
+func NewPublisher(conn Connection, logger *slog.Logger) *Publisher {
 	return &Publisher{
-		conn: conn,
+		conn:   conn,
+		logger: logger,
 	}
 }
 
@@ -39,14 +41,14 @@ func (p *Publisher) Publish(
 	// Marshal the message to JSON
 	jsonBytes, err := json.Marshal(message)
 	if err != nil {
-		slog.Error("failed to marshal message", "error", err)
+		p.logger.Error("failed to marshal message", "error", err)
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
 	ch := p.conn.Channel()
 	if ch == nil {
 		err := fmt.Errorf("channel is nil")
-		slog.Error("cannot publish message", "error", err)
+		p.logger.Error("cannot publish message", "error", err)
 		return err
 	}
 
@@ -63,7 +65,7 @@ func (p *Publisher) Publish(
 		},
 	)
 	if err != nil {
-		slog.Error("failed to publish message",
+		p.logger.Error("failed to publish message",
 			"exchange", exchange,
 			"routing_key", routingKey,
 			"error", err,
@@ -71,7 +73,7 @@ func (p *Publisher) Publish(
 		return fmt.Errorf("failed to publish message: %w", err)
 	}
 
-	slog.Debug("message published",
+	p.logger.Debug("message published",
 		"exchange", exchange,
 		"routing_key", routingKey,
 	)
