@@ -153,7 +153,10 @@ func (q *Queries) CreateEmailRequest(ctx context.Context, arg CreateEmailRequest
 }
 
 const getEmailRequestByID = `-- name: GetEmailRequestByID :one
-SELECT id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at FROM email_requests WHERE id = $1 LIMIT 1
+select id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at
+from email_requests
+where id = $1
+limit 1
 `
 
 func (q *Queries) GetEmailRequestByID(ctx context.Context, id uuid.UUID) (EmailRequest, error) {
@@ -184,7 +187,10 @@ func (q *Queries) GetEmailRequestByID(ctx context.Context, id uuid.UUID) (EmailR
 }
 
 const getEmailRequestByService = `-- name: GetEmailRequestByService :many
-SELECT id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at FROM email_requests WHERE service_id = $1 ORDER BY received_at DESC
+select id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at
+from email_requests
+where service_id = $1
+order by received_at desc
 `
 
 // Orders the time it was recieved ie the most previous
@@ -226,4 +232,45 @@ func (q *Queries) GetEmailRequestByService(ctx context.Context, serviceID string
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateEmailRequestStatusByID = `-- name: UpdateEmailRequestStatusByID :one
+UPDATE email_requests
+  SET status = $2
+  WHERE id = $1
+RETURNING id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at
+`
+
+type UpdateEmailRequestStatusByIDParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+// Updates an email_request record effectively setting its status to one of
+// the predefined statuses
+func (q *Queries) UpdateEmailRequestStatusByID(ctx context.Context, arg UpdateEmailRequestStatusByIDParams) (EmailRequest, error) {
+	row := q.db.QueryRow(ctx, updateEmailRequestStatusByID, arg.ID, arg.Status)
+	var i EmailRequest
+	err := row.Scan(
+		&i.ID,
+		&i.ServiceID,
+		&i.QueueMessageID,
+		&i.Exchange,
+		&i.RoutingKey,
+		&i.FromAddress,
+		&i.ReplyTo,
+		&i.ToAddresses,
+		&i.CcAddresses,
+		&i.BccAddresses,
+		&i.Subject,
+		&i.BodyHtml,
+		&i.BodyText,
+		&i.Attachments,
+		&i.TemplateID,
+		&i.TemplateVars,
+		&i.Status,
+		&i.ReceivedAt,
+		&i.ProcessedAt,
+	)
+	return i, err
 }

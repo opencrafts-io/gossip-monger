@@ -28,10 +28,26 @@ RETURNING *;
 
 -- name: GetEmailRequestByService :many
 -- Orders the time it was recieved ie the most previous
-SELECT * FROM email_requests WHERE service_id = $1 ORDER BY received_at DESC;
+select *
+from email_requests
+where service_id = $1
+order by received_at desc
+;
 
 -- name: GetEmailRequestByID :one
-SELECT * FROM email_requests WHERE id = $1 LIMIT 1;
+select *
+from email_requests
+where id = $1
+limit 1
+;
+
+-- name: UpdateEmailRequestStatusByID :one
+-- Updates an email_request record effectively setting its status to one of
+-- the predefined statuses
+UPDATE email_requests
+  SET status = $2
+  WHERE id = $1
+RETURNING *;
 
 
 -- name: CreateEmailDispatch :one

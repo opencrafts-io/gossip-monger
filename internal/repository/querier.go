@@ -38,6 +38,9 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username *string) (User, error)
 	MarkNotificationAsRead(ctx context.Context, id uuid.UUID) error
+	// Updates an email_request record effectively setting its status to one of
+	// the predefined statuses
+	UpdateEmailRequestStatusByID(ctx context.Context, arg UpdateEmailRequestStatusByIDParams) (EmailRequest, error)
 	UpdateNotificationOneSignalData(ctx context.Context, arg UpdateNotificationOneSignalDataParams) error
 	UpdateNotificationStatus(ctx context.Context, arg UpdateNotificationStatusParams) error
 	UpdateUserByID(ctx context.Context, arg UpdateUserByIDParams) (User, error)
