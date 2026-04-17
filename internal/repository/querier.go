@@ -13,15 +13,10 @@ import (
 
 type Querier interface {
 	CleanupOldNotifications(ctx context.Context) error
-	CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error)
-	CreateEmailRecipient(ctx context.Context, arg CreateEmailRecipientParams) (EmailRecipient, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteNotification(ctx context.Context, id uuid.UUID) error
 	DeleteUserByID(ctx context.Context, id uuid.UUID) error
-	GetEmailByExternalID(ctx context.Context, externalID pgtype.UUID) (Email, error)
-	GetEmailByID(ctx context.Context, id uuid.UUID) (Email, error)
-	GetEmailRecipients(ctx context.Context, arg GetEmailRecipientsParams) ([]EmailRecipient, error)
 	GetNotificationByID(ctx context.Context, id uuid.UUID) (Notification, error)
 	GetNotificationByOneSignalID(ctx context.Context, onesignalNotificationID *string) (Notification, error)
 	GetNotificationStats(ctx context.Context, targetUserID pgtype.UUID) (GetNotificationStatsRow, error)
