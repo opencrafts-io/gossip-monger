@@ -20,14 +20,14 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "valid email with html body",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
 			},
 			expectError: false,
 			validate: func(t *testing.T, req *resend.SendEmailRequest) {
-				assert.Equal(t, "sender@example.com", req.From)
+				assert.Equal(t, "sender@posta.opencrafts.io", req.From)
 				assert.Equal(t, []string{"recipient@example.com"}, req.To)
 				assert.Equal(t, "Test Subject", req.Subject)
 				assert.Equal(t, "<h1>Hello</h1>", req.Html)
@@ -38,7 +38,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "valid email with text body",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyText:    stringPtr("Hello World"),
@@ -52,7 +52,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "valid email with both html and text",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
@@ -67,7 +67,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "valid email with template",
 			email: Email{
-				FromAddress:  "sender@example.com",
+				FromAddress:  "sender@posta.opencrafts.io",
 				ToAddresses:  []string{"recipient@example.com"},
 				Subject:      "Test Subject",
 				TemplateID:   stringPtr("template_123"),
@@ -84,7 +84,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "email with cc and bcc",
 			email: Email{
-				FromAddress:  "sender@example.com",
+				FromAddress:  "sender@posta.opencrafts.io",
 				ToAddresses:  []string{"recipient@example.com"},
 				CcAddresses:  []string{"cc@example.com"},
 				BccAddresses: []string{"bcc@example.com"},
@@ -100,7 +100,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "email with reply-to",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
@@ -114,7 +114,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "email with attachments",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
@@ -143,7 +143,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "missing to addresses",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
@@ -154,7 +154,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "missing subject",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
@@ -165,7 +165,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "missing body and template",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 			},
@@ -175,7 +175,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "both body and template provided",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
@@ -187,7 +187,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "invalid attachments json",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
@@ -199,7 +199,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "invalid template vars json",
 			email: Email{
-				FromAddress:  "sender@example.com",
+				FromAddress:  "sender@posta.opencrafts.io",
 				ToAddresses:  []string{"recipient@example.com"},
 				Subject:      "Test Subject",
 				TemplateID:   stringPtr("template_123"),
@@ -211,7 +211,7 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 		{
 			name: "empty template id with whitespace",
 			email: Email{
-				FromAddress: "sender@example.com",
+				FromAddress: "sender@posta.opencrafts.io",
 				ToAddresses: []string{"recipient@example.com"},
 				Subject:     "Test Subject",
 				BodyHtml:    stringPtr("<h1>Hello</h1>"),
