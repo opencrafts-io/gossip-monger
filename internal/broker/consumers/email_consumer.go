@@ -54,7 +54,7 @@ func (ec *EmailConsumer) handleMessage(
 		return err
 	}
 
-	if !strings.Contains(emailMsg.Meta.SourceServiceID, "io.opencrafts.") {
+	if !strings.HasPrefix(emailMsg.Meta.SourceServiceID, "io.opencrafts.") {
 		return fmt.Errorf(
 			"wrong service id expected service id to be in the io.opencrafts namespace instead got '%s'",
 			emailMsg.Meta.SourceServiceID,
