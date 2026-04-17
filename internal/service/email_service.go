@@ -128,11 +128,15 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 		return fmt.Errorf("failed to persist email dispatch record: %w", err)
 	}
 
+	finalStatus := "dispatched"
+	if resendErr != nil {
+		finalStatus = "failed"
+	}
 	_, err = repo.UpdateEmailRequestStatusByID(
 		ctx,
 		repository.UpdateEmailRequestStatusByIDParams{
 			ID:     emailReq.ID,
-			Status: "dispatched",
+			Status: finalStatus,
 		},
 	)
 	if err != nil {
