@@ -155,10 +155,9 @@ func (es *emailService) emailToResendEmailRequest(
 		return nil, fmt.Errorf("from address is required")
 	}
 
-	if !strings.HasSuffix(email.FromAddress, "@posta.opencrafts.io") {
-		return nil, fmt.Errorf(
-			"from address should conform to <username>@opencrafts.io",
-		)
+	const allowedSenderDomain = "@posta.opencrafts.io"
+	if !strings.HasSuffix(email.FromAddress, allowedSenderDomain) {
+		return nil, fmt.Errorf("from address must end with %s", allowedSenderDomain)
 	}
 
 	if len(email.ToAddresses) == 0 {
