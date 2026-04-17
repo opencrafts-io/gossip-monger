@@ -145,7 +145,8 @@ func (c *Consumer) Consume(
 			return ctx.Err()
 		case msg, ok := <-msgs:
 			if !ok {
-				c.logger.Error("consuming failed", "queue", queue, "error", err)
+				c.logger.Error("message channel closed", "queue", queue)
+				return fmt.Errorf("message channel closed for queue: %s", queue)
 			}
 
 			// Call the handler with the message
@@ -154,7 +155,7 @@ func (c *Consumer) Consume(
 					"queue", queue,
 					"error", err,
 				)
-				msg.Nack(false, true)
+				msg.Nack(false, false)
 				// Continue consuming, don't stop on handler error
 			} else {
 				msg.Ack(false)
