@@ -155,6 +155,12 @@ func (es *emailService) emailToResendEmailRequest(
 		return nil, fmt.Errorf("from address is required")
 	}
 
+	if !strings.HasSuffix(email.FromAddress, "@posta.opencrafts.io") {
+		return nil, fmt.Errorf(
+			"from address should conform to <username>@opencrafts.io",
+		)
+	}
+
 	if len(email.ToAddresses) == 0 {
 		return nil, fmt.Errorf("at least one recipient is required")
 	}
