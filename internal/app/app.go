@@ -18,6 +18,7 @@ import (
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
 	"github.com/opencrafts-io/gossip-monger/internal/repository"
 	"github.com/opencrafts-io/gossip-monger/internal/service"
+	"github.com/resend/resend-go/v3"
 )
 
 type GossipMonger struct {
@@ -32,6 +33,7 @@ type GossipMonger struct {
 	// Services
 	pushNotificationSvc service.PushNotificationService
 	userService         service.UserService
+	emailService        service.EmailService
 }
 
 // Creates a new gossip-monger application ready to service requests
@@ -100,6 +102,10 @@ func NewGossipMongerApp(
 		oneSignalService,
 	)
 
+	resendClient := resend.NewClient(cfg.ResendConfig.ResendAPIKey)
+
+	emailService := service.NewEmailService(connPool, resendClient, logger)
+
 	userService := service.NewUserService(connPool, logger)
 
 	return &GossipMonger{
@@ -109,6 +115,7 @@ func NewGossipMongerApp(
 		logger:              logger,
 		pushNotificationSvc: pnsvc,
 		userService:         userService,
+		emailService:        emailService,
 	}, nil
 }
 
@@ -177,6 +184,12 @@ func (gm *GossipMonger) startConsumers(ctx context.Context) {
 		gm.logger,
 	)
 
+	emailConsumer := consumers.NewEmailConsumer(
+		gm.rabbitMQConn,
+		gm.emailService,
+		gm.logger,
+	)
+
 	gm.consumerWg.Add(1)
 	go func() {
 		defer gm.consumerWg.Done()
@@ -194,6 +207,16 @@ func (gm *GossipMonger) startConsumers(ctx context.Context) {
 		if err := userConsumer.Start(ctx); err != nil {
 			gm.logger.Error(
 				"User events consumer stopped",
+				slog.Any("error", err),
+			)
+		}
+	}()
+	gm.consumerWg.Add(1)
+	go func() {
+		defer gm.consumerWg.Done()
+		if err := emailConsumer.Start(ctx); err != nil {
+			gm.logger.Error(
+				"Email events consumer stopped",
 				slog.Any("error", err),
 			)
 		}

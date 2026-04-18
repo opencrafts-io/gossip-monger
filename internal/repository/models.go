@@ -5,124 +5,55 @@
 package repository
 
 import (
-	"database/sql/driver"
 	"encoding/json"
-	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type RecipientType string
-
-const (
-	RecipientTypeCc      RecipientType = "cc"
-	RecipientTypeBcc     RecipientType = "bcc"
-	RecipientTypePrimary RecipientType = "primary"
-)
-
-func (e *RecipientType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = RecipientType(s)
-	case string:
-		*e = RecipientType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for RecipientType: %T", src)
-	}
-	return nil
+type EmailDeliveryEvent struct {
+	ID            uuid.UUID          `json:"id"`
+	DispatchID    uuid.UUID          `json:"dispatch_id"`
+	ResendEmailID string             `json:"resend_email_id"`
+	EventType     string             `json:"event_type"`
+	Recipient     *string            `json:"recipient"`
+	RawPayload    json.RawMessage    `json:"raw_payload"`
+	OccurredAt    pgtype.Timestamptz `json:"occurred_at"`
+	RecordedAt    pgtype.Timestamptz `json:"recorded_at"`
 }
 
-type NullRecipientType struct {
-	RecipientType RecipientType `json:"recipient_type"`
-	Valid         bool          `json:"valid"` // Valid is true if RecipientType is not NULL
+type EmailDispatch struct {
+	ID             uuid.UUID          `json:"id"`
+	EmailRequestID uuid.UUID          `json:"email_request_id"`
+	ResendEmailID  *string            `json:"resend_email_id"`
+	ResendPayload  json.RawMessage    `json:"resend_payload"`
+	Status         string             `json:"status"`
+	HttpStatusCode *int32             `json:"http_status_code"`
+	ResendError    *string            `json:"resend_error"`
+	DispatchedAt   pgtype.Timestamptz `json:"dispatched_at"`
 }
 
-// Scan implements the Scanner interface.
-func (ns *NullRecipientType) Scan(value interface{}) error {
-	if value == nil {
-		ns.RecipientType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.RecipientType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullRecipientType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.RecipientType), nil
-}
-
-type SentStatus string
-
-const (
-	SentStatusPending   SentStatus = "pending"
-	SentStatusScheduled SentStatus = "scheduled"
-	SentStatusDelivered SentStatus = "delivered"
-	SentStatusFailed    SentStatus = "failed"
-)
-
-func (e *SentStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = SentStatus(s)
-	case string:
-		*e = SentStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for SentStatus: %T", src)
-	}
-	return nil
-}
-
-type NullSentStatus struct {
-	SentStatus SentStatus `json:"sent_status"`
-	Valid      bool       `json:"valid"` // Valid is true if SentStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullSentStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.SentStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.SentStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullSentStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.SentStatus), nil
-}
-
-type Email struct {
-	ID              uuid.UUID        `json:"id"`
-	ExternalID      pgtype.UUID      `json:"external_id"`
-	Subject         *string          `json:"subject"`
-	Body            *string          `json:"body"`
-	ReplyTo         *string          `json:"reply_to"`
-	SourceServiceID *string          `json:"source_service_id"`
-	SourceUserID    pgtype.UUID      `json:"source_user_id"`
-	SourceUserEmail *string          `json:"source_user_email"`
-	ScheduleFor     pgtype.Timestamp `json:"schedule_for"`
-	DeliveredAt     pgtype.Timestamp `json:"delivered_at"`
-	DeliveryStatus  SentStatus       `json:"delivery_status"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-}
-
-type EmailRecipient struct {
-	ID          uuid.UUID        `json:"id"`
-	EmailID     uuid.UUID        `json:"email_id"`
-	RecipientID uuid.UUID        `json:"recipient_id"`
-	RecieveType RecipientType    `json:"recieve_type"`
-	CreatedAt   pgtype.Timestamp `json:"created_at"`
-	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+type EmailRequest struct {
+	ID             uuid.UUID          `json:"id"`
+	ServiceID      string             `json:"service_id"`
+	QueueMessageID string             `json:"queue_message_id"`
+	Exchange       string             `json:"exchange"`
+	RoutingKey     string             `json:"routing_key"`
+	FromAddress    string             `json:"from_address"`
+	ReplyTo        *string            `json:"reply_to"`
+	ToAddresses    []string           `json:"to_addresses"`
+	CcAddresses    []string           `json:"cc_addresses"`
+	BccAddresses   []string           `json:"bcc_addresses"`
+	Subject        string             `json:"subject"`
+	BodyHtml       *string            `json:"body_html"`
+	BodyText       *string            `json:"body_text"`
+	Attachments    json.RawMessage    `json:"attachments"`
+	TemplateID     *string            `json:"template_id"`
+	TemplateVars   json.RawMessage    `json:"template_vars"`
+	Status         string             `json:"status"`
+	ReceivedAt     pgtype.Timestamptz `json:"received_at"`
+	ProcessedAt    *time.Time         `json:"processed_at"`
 }
 
 type Notification struct {
@@ -187,6 +118,14 @@ type Notification struct {
 	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
 	SentAt                  pgtype.Timestamp `json:"sent_at"`
 	DeliveredAt             pgtype.Timestamp `json:"delivered_at"`
+}
+
+type Service struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Description *string            `json:"description"`
+	IsActive    bool               `json:"is_active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {
