@@ -117,10 +117,18 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 		dispatchParams.ResendError = &errString
 		var statusCode int32 = 400
 		dispatchParams.HttpStatusCode = &statusCode
+		es.logger.Error("resend delivery failed",
+			"email_request_id", emailReq.ID,
+			"error", resendErr,
+		)
 	} else {
 		var statusCode int32 = 200
 		dispatchParams.ResendEmailID = &sent.Id
 		dispatchParams.HttpStatusCode = &statusCode
+		es.logger.Error("resend delivery ok!",
+			"email_request_id", emailReq.ID,
+		)
+
 	}
 
 	_, err = repo.CreateEmailDispatch(ctx, dispatchParams)
@@ -161,10 +169,14 @@ func (es *emailService) emailToResendEmailRequest(
 
 	const allowedSenderDomain = "@posta.opencrafts.io"
 	if !strings.HasSuffix(email.FromAddress, allowedSenderDomain) {
-		return nil, fmt.Errorf("from address must end with %s", allowedSenderDomain)
+		return nil, fmt.Errorf(
+			"from address must end with %s",
+			allowedSenderDomain,
+		)
 	}
 
-	if len(email.ToAddresses) == 0 && len(email.CcAddresses) == 0 && len(email.BccAddresses) == 0 {
+	if len(email.ToAddresses) == 0 && len(email.CcAddresses) == 0 &&
+		len(email.BccAddresses) == 0 {
 		return nil, fmt.Errorf("at least one recipient is required")
 	}
 
