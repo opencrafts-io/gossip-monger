@@ -256,19 +256,20 @@ func (pns *pushNotificationService) preparePushPayload(
 	}
 	notification.SetHeadings(*heading)
 
-	// set the subtitle
-	var rawSubtitles map[string]string
-	if err := json.Unmarshal(pushNotification.Subtitle, &rawSubtitles); err != nil {
-		return nil, err
-	}
-	subtitle := onesignal.NewLanguageStringMap()
-	for lang, content := range rawSubtitles {
-		switch lang {
-		case "en":
-			subtitle.SetEn(content)
+	if pushNotification.Subtitle != nil {
+		var rawSubtitles map[string]string
+		if err := json.Unmarshal(pushNotification.Subtitle, &rawSubtitles); err != nil {
+			return nil, err
 		}
+		subtitle := onesignal.NewLanguageStringMap()
+		for lang, content := range rawSubtitles {
+			switch lang {
+			case "en":
+				subtitle.SetEn(content)
+			}
+		}
+		notification.SetSubtitle(*subtitle)
 	}
-	notification.SetSubtitle(*subtitle)
 
 	if pushNotification.Contents == nil {
 		return nil, errors.New("contents are required for push notifictions.")
