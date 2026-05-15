@@ -125,7 +125,7 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 		var statusCode int32 = 200
 		dispatchParams.ResendEmailID = &sent.Id
 		dispatchParams.HttpStatusCode = &statusCode
-		es.logger.Error("resend delivery ok!",
+		es.logger.Info("resend delivery ok!",
 			"email_request_id", emailReq.ID,
 		)
 
