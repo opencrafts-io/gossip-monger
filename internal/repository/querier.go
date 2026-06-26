@@ -13,15 +13,18 @@ import (
 
 type Querier interface {
 	CleanupOldNotifications(ctx context.Context) error
-	CreateEmail(ctx context.Context, arg CreateEmailParams) (Email, error)
-	CreateEmailRecipient(ctx context.Context, arg CreateEmailRecipientParams) (EmailRecipient, error)
+	// Records an email dispatch to the email sending service for compliance
+	// purposes
+	CreateEmailDispatch(ctx context.Context, arg CreateEmailDispatchParams) (EmailDispatch, error)
+	// Persists an email request to the database for replayability
+	CreateEmailRequest(ctx context.Context, arg CreateEmailRequestParams) (EmailRequest, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteNotification(ctx context.Context, id uuid.UUID) error
 	DeleteUserByID(ctx context.Context, id uuid.UUID) error
-	GetEmailByExternalID(ctx context.Context, externalID pgtype.UUID) (Email, error)
-	GetEmailByID(ctx context.Context, id uuid.UUID) (Email, error)
-	GetEmailRecipients(ctx context.Context, arg GetEmailRecipientsParams) ([]EmailRecipient, error)
+	GetEmailRequestByID(ctx context.Context, id uuid.UUID) (EmailRequest, error)
+	// Orders the time it was recieved ie the most previous
+	GetEmailRequestByService(ctx context.Context, serviceID string) ([]EmailRequest, error)
 	GetNotificationByID(ctx context.Context, id uuid.UUID) (Notification, error)
 	GetNotificationByOneSignalID(ctx context.Context, onesignalNotificationID *string) (Notification, error)
 	GetNotificationStats(ctx context.Context, targetUserID pgtype.UUID) (GetNotificationStatsRow, error)
@@ -35,6 +38,9 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username *string) (User, error)
 	MarkNotificationAsRead(ctx context.Context, id uuid.UUID) error
+	// Updates an email_request record effectively setting its status to one of
+	// the predefined statuses
+	UpdateEmailRequestStatusByID(ctx context.Context, arg UpdateEmailRequestStatusByIDParams) (EmailRequest, error)
 	UpdateNotificationOneSignalData(ctx context.Context, arg UpdateNotificationOneSignalDataParams) error
 	UpdateNotificationStatus(ctx context.Context, arg UpdateNotificationStatusParams) error
 	UpdateUserByID(ctx context.Context, arg UpdateUserByIDParams) (User, error)
