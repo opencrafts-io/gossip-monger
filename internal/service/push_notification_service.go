@@ -12,8 +12,17 @@ import (
 	"time"
 
 	"github.com/OneSignal/onesignal-go-api/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/opencrafts-io/gossip-monger/internal/repository"
+	"github.com/opencrafts-io/gossip-monger/internal/resilience"
 )
+
+// onesignalCallResult bundles the two non-error return values of the
+// OneSignal CreateNotification call so it fits the breaker's single-value
+// generic signature.
+type onesignalCallResult struct {
+	httpResp *http.Response
+}
 
 type PushNotificationEventMetaData struct {
 	EventType       string    `json:"event_type"`
@@ -28,23 +37,26 @@ type PushNotificationEvent struct {
 }
 
 type PushNotificationService interface {
-	Send(context.Context, repository.Notification) error
+	Send(ctx context.Context, push repository.Notification, queueMessageID string) error
 }
 
 type pushNotificationService struct {
 	repo            repository.Querier
 	logger          *slog.Logger
 	onesignalClient *onesignal.APIClient
+	breaker         resilience.Breaker[*onesignalCallResult]
 }
 
 func NewPushNotificationService(
 	repo repository.Querier,
 	logger *slog.Logger,
 	onesignalClient *onesignal.APIClient,
+	breakerSettings resilience.Settings,
 ) PushNotificationService {
 	return &pushNotificationService{
 		repo:            repo,
 		onesignalClient: onesignalClient,
+		breaker:         resilience.New[*onesignalCallResult]("onesignal", breakerSettings, logger),
 		logger:          logger,
 	}
 }
@@ -52,49 +64,97 @@ func NewPushNotificationService(
 func (pns *pushNotificationService) Send(
 	ctx context.Context,
 	push repository.Notification,
+	queueMessageID string,
 ) error {
+	push.QueueMessageID = &queueMessageID
+
+	// A retry (DLX redelivery) and an external duplicate republish of the
+	// same queueMessageID are indistinguishable at this point — both must
+	// be safe. If this id already reached OneSignal successfully, skip
+	// resending: proceeding would happily resend a push that already went
+	// through.
+	existing, err := pns.repo.GetNotificationByQueueMessageID(ctx, &queueMessageID)
+	if err == nil {
+		if existing.Status != nil && *existing.Status == "sent" {
+			pns.logger.Info("duplicate queue_message_id already sent, skipping resend",
+				"queue_message_id", queueMessageID,
+			)
+			return nil
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("failed to check for duplicate notification: %w", err)
+	}
+
 	payload, err := pns.preparePushPayload(push)
 	if err != nil {
+		if persistErr := pns.persistOutcome(ctx, &push, "failed"); persistErr != nil {
+			pns.logger.Error("failed to persist notification after validation error",
+				"error", persistErr,
+			)
+		}
 		return err
 	}
 
-	_, code, err := pns.onesignalClient.DefaultApi.
-		CreateNotification(ctx).Notification(*payload).Execute()
+	result, callErr := pns.breaker.Execute(func() (*onesignalCallResult, error) {
+		_, httpResp, err := pns.onesignalClient.DefaultApi.
+			CreateNotification(ctx).Notification(*payload).Execute()
+		return &onesignalCallResult{httpResp: httpResp}, err
+	})
 
 	var body []byte
-	if code != nil && code.Body != nil {
-		defer code.Body.Close()
-		body, _ = io.ReadAll(code.Body)
+	statusCode := 0
+	if result != nil && result.httpResp != nil {
+		statusCode = result.httpResp.StatusCode
+		if result.httpResp.Body != nil {
+			defer result.httpResp.Body.Close()
+			body, _ = io.ReadAll(result.httpResp.Body)
+		}
 	}
 
-	// Parse response
-	notificationID, rawResponse, parseErr := pns.parseOnesignalResponse(
-		body,
-		code.StatusCode,
-	)
-
-	// Enrich notification with response data
-	if err != nil {
-		enrichNotificationFromResponse(&push, "", rawResponse, err)
-		return err
+	// Parse response (only meaningful if the call actually reached OneSignal)
+	var notificationID string
+	var rawResponse json.RawMessage
+	var parseErr error
+	if callErr == nil {
+		notificationID, rawResponse, parseErr = pns.parseOnesignalResponse(body, statusCode)
 	}
 
-	if parseErr != nil {
-		enrichNotificationFromResponse(&push, "", rawResponse, parseErr)
-		return parseErr
+	finalErr := callErr
+	if finalErr == nil {
+		finalErr = parseErr
+	}
+	enrichNotificationFromResponse(&push, notificationID, rawResponse, finalErr)
+
+	outcomeStatus := "sent"
+	switch {
+	case resilience.Open(callErr):
+		outcomeStatus = "circuit_open"
+	case finalErr != nil:
+		outcomeStatus = "failed"
 	}
 
-	// Success path
-	enrichNotificationFromResponse(&push, notificationID, rawResponse, nil)
+	if persistErr := pns.persistOutcome(ctx, &push, outcomeStatus); persistErr != nil {
+		return persistErr
+	}
 
-	_, err = pns.repo.CreateNotification(
+	return finalErr
+}
+
+// persistOutcome upserts push (keyed by its QueueMessageID) with the given
+// status, recording every attempt — success, provider error, or
+// breaker-rejected — rather than only ever recording success.
+func (pns *pushNotificationService) persistOutcome(
+	ctx context.Context,
+	push *repository.Notification,
+	status string,
+) error {
+	push.Status = &status
+	if _, err := pns.repo.UpsertNotification(
 		ctx,
-		pns.notificationToCreateParams(&push),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to persist notification %w", err)
+		pns.notificationToUpsertParams(push),
+	); err != nil {
+		return fmt.Errorf("failed to persist notification: %w", err)
 	}
-
 	return nil
 }
 
@@ -158,10 +218,10 @@ func enrichNotificationFromResponse(
 	}
 }
 
-func (pns *pushNotificationService) notificationToCreateParams(
+func (pns *pushNotificationService) notificationToUpsertParams(
 	n *repository.Notification,
-) repository.CreateNotificationParams {
-	return repository.CreateNotificationParams{
+) repository.UpsertNotificationParams {
+	return repository.UpsertNotificationParams{
 		AppID:                   n.AppID,
 		IncludedSegments:        n.IncludedSegments,
 		ExcludedSegments:        n.ExcludedSegments,
@@ -215,6 +275,8 @@ func (pns *pushNotificationService) notificationToCreateParams(
 		OnesignalStatus:         n.OnesignalStatus,
 		OnesignalResponse:       n.OnesignalResponse,
 		OnesignalError:          n.OnesignalError,
+		QueueMessageID:          n.QueueMessageID,
+		Status:                  n.Status,
 	}
 }
 
