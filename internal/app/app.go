@@ -17,6 +17,7 @@ import (
 	"github.com/opencrafts-io/gossip-monger/internal/config"
 	"github.com/opencrafts-io/gossip-monger/internal/middleware"
 	"github.com/opencrafts-io/gossip-monger/internal/repository"
+	"github.com/opencrafts-io/gossip-monger/internal/resilience"
 	"github.com/opencrafts-io/gossip-monger/internal/service"
 	"github.com/resend/resend-go/v3"
 )
@@ -95,11 +96,20 @@ func NewGossipMongerApp(
 		panic("Failed to initialize one signal service")
 
 	}
+	breakerSettings := resilience.Settings{
+		ConsecutiveFailures: cfg.BreakerConfig.ConsecutiveFailures,
+		OpenTimeout: time.Duration(
+			cfg.BreakerConfig.OpenTimeoutSeconds,
+		) * time.Second,
+		HalfOpenMaxRequests: cfg.BreakerConfig.HalfOpenMaxRequests,
+	}
+
 	querier := repository.New(connPool)
 	pnsvc := service.NewPushNotificationService(
 		querier,
 		logger,
 		oneSignalService,
+		breakerSettings,
 	)
 
 	resendClient := resend.NewClient(cfg.ResendConfig.ResendAPIKey)
@@ -108,6 +118,7 @@ func NewGossipMongerApp(
 		connPool,
 		resendClient,
 		cfg.ResendConfig.AllowedSenderDomains,
+		breakerSettings,
 		logger,
 	)
 
@@ -177,9 +188,28 @@ func (gm *GossipMonger) Start(ctx context.Context) error {
 }
 
 func (gm *GossipMonger) startConsumers(ctx context.Context) {
+	retryDelay := time.Duration(
+		gm.config.RabbitMQConfig.RetryDelaySeconds,
+	) * time.Second
+
+	if err := broker.DeclareRetryTopology(
+		gm.rabbitMQConn,
+		retryDelay,
+		"gossip.topic.exchange",
+		[]string{"gossip.emails.send", "gossip.push.send"},
+	); err != nil {
+		gm.logger.Error(
+			"failed to declare retry topology, failed sends will not be retried",
+			slog.Any("error", err),
+		)
+	}
+
+	maxRetryAttempts := gm.config.RabbitMQConfig.MaxRetryAttempts
+
 	pushNotificationConsumer := consumers.NewPushNotificationConsumer(
 		gm.rabbitMQConn,
 		gm.pushNotificationSvc,
+		maxRetryAttempts,
 		gm.logger,
 	)
 
@@ -192,6 +222,7 @@ func (gm *GossipMonger) startConsumers(ctx context.Context) {
 	emailConsumer := consumers.NewEmailConsumer(
 		gm.rabbitMQConn,
 		gm.emailService,
+		maxRetryAttempts,
 		gm.logger,
 	)
 

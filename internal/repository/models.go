@@ -118,6 +118,7 @@ type Notification struct {
 	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
 	SentAt                  pgtype.Timestamp `json:"sent_at"`
 	DeliveredAt             pgtype.Timestamp `json:"delivered_at"`
+	QueueMessageID          *string          `json:"queue_message_id"`
 }
 
 type Service struct {

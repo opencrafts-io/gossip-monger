@@ -3,13 +3,16 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/opencrafts-io/gossip-monger/internal/repository"
+	"github.com/opencrafts-io/gossip-monger/internal/resilience"
 	"github.com/resend/resend-go/v3"
 )
 
@@ -22,18 +25,21 @@ type emailService struct {
 	logger               *slog.Logger
 	emailClient          *resend.Client
 	allowedSenderDomains []string
+	breaker              resilience.Breaker[*resend.SendEmailResponse]
 }
 
 func NewEmailService(
 	pool *pgxpool.Pool,
 	emailClient *resend.Client,
 	allowedSenderDomains []string,
+	breakerSettings resilience.Settings,
 	logger *slog.Logger,
 ) EmailService {
 	return &emailService{
 		pool:                 pool,
 		emailClient:          emailClient,
 		allowedSenderDomains: allowedSenderDomains,
+		breaker:              resilience.New[*resend.SendEmailResponse]("resend", breakerSettings, logger),
 		logger:               logger,
 	}
 }
@@ -64,6 +70,25 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 
 	repo := repository.New(tx)
 
+	// A retry (DLX redelivery) and an external duplicate republish of the
+	// same request_id are indistinguishable at this point — both must be
+	// safe. If this request_id already reached Resend successfully, skip
+	// resending: the upsert below would otherwise happily retry a send
+	// that already went through.
+	if existing, err := repo.GetEmailRequestByQueueMessageID(
+		ctx,
+		emailEvent.Meta.RequestID,
+	); err == nil {
+		if existing.Status == "dispatched" {
+			es.logger.Info("duplicate request_id already dispatched, skipping resend",
+				"request_id", emailEvent.Meta.RequestID,
+			)
+			return nil
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("failed to check for duplicate email request: %w", err)
+	}
+
 	if _, err := repo.UpsertService(ctx, repository.UpsertServiceParams{
 		ID:   emailEvent.Meta.SourceServiceID,
 		Name: emailEvent.Meta.SourceServiceID,
@@ -72,9 +97,9 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 	}
 
 	now := time.Now()
-	emailReq, err := repo.CreateEmailRequest(
+	emailReq, err := repo.UpsertEmailRequest(
 		ctx,
-		repository.CreateEmailRequestParams{
+		repository.UpsertEmailRequestParams{
 			ServiceID:      emailEvent.Meta.SourceServiceID,
 			QueueMessageID: emailEvent.Meta.RequestID,
 			Exchange:       "gossip.topic.exchange",
@@ -103,17 +128,24 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 		return fmt.Errorf("failed to convert email to resend request: %w", err)
 	}
 
-	sent, resendErr := es.emailClient.Emails.Send(resendRequest)
+	sent, resendErr := es.breaker.Execute(func() (*resend.SendEmailResponse, error) {
+		return es.emailClient.Emails.Send(resendRequest)
+	})
 
 	resendPayload, err := json.Marshal(resendRequest)
 	if err != nil {
 		return fmt.Errorf("failed to marshal resend payload: %w", err)
 	}
 
-	// Determine dispatch status based on Resend API response
+	// Determine dispatch status based on Resend API response. circuit_open
+	// is distinct from failed so operators can tell "the provider was
+	// already known-down, we didn't even try" apart from "we tried and
+	// Resend rejected this payload."
 	dispatchStatus := "failed"
 	if resendErr == nil {
 		dispatchStatus = "sent"
+	} else if resilience.Open(resendErr) {
+		dispatchStatus = "circuit_open"
 	}
 
 	dispatchParams := repository.CreateEmailDispatchParams{
@@ -129,6 +161,7 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 		dispatchParams.HttpStatusCode = &statusCode
 		es.logger.Error("resend delivery failed",
 			"email_request_id", emailReq.ID,
+			"status", dispatchStatus,
 			"error", resendErr,
 		)
 	} else {
@@ -148,7 +181,7 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 
 	finalStatus := "dispatched"
 	if resendErr != nil {
-		finalStatus = "failed"
+		finalStatus = dispatchStatus // "failed" or "circuit_open"
 	}
 	_, err = repo.UpdateEmailRequestStatusByID(
 		ctx,
@@ -161,11 +194,17 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 		return fmt.Errorf("failed to update email request status: %w", err)
 	}
 
-	// Commit the transaction
+	// Commit the transaction so the attempt is recorded regardless of
+	// outcome, then propagate resendErr so the consumer nacks the message
+	// for a retry instead of acking a failed send as if it succeeded.
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	commited = true
+
+	if resendErr != nil {
+		return fmt.Errorf("failed to send email via resend: %w", resendErr)
+	}
 
 	return nil
 }
