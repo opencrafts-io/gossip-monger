@@ -33,3 +33,6 @@ go.work.sum
 
 # temporary file
 tmp/
+
+# local analysis / assessment reports (not for version control)
+.reports/
