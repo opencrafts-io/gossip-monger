@@ -1,139 +1,88 @@
+# Gossip Monger
 
-# Gossip Monger: Notification Service
+OpenCrafts' notification relay infrastructure.
 
-**Gossip Monger** is a reliable, standalone notification proxy service for the Academia platform. It acts as a central hub for sending information to users across various communication channels, primarily:
-
-* **Push Notifications**
-* **Emails**
-
-The service acts as an intermediary (a proxy) between other internal Academia services and external providers such as **Onesignal** (for push notifications) and **Resend** (for emails).
+Gossip Monger is a standalone service that relays notifications on behalf of every `io.opencrafts.*` service — not just one product. It sits between your service and the providers that actually deliver messages: **OneSignal** for push, **Resend** for email. Your service publishes an event to RabbitMQ; Gossip Monger validates it, records it, and dispatches it to the right provider.
 
 ---
 
-## How Gossip Monger Works
+## How it works
 
-Gossip Monger is a **consumer-only** service. It does not expose a traditional API (HTTP, gRPC, etc.); it **only** communicates via a secure, single-entry event bus provided by **RabbitMQ**.
+Gossip Monger is **consumer-only** — it has no public HTTP or gRPC API beyond a `/ping` health check. Every interaction happens over RabbitMQ:
 
-This approach ensures a decoupled and secure mode of communication, where requesting services publish events to a known exchange, and Gossip Monger processes them asynchronously.
+1. Your service publishes a message to a topic exchange, using a routing key for the channel you want (email or push).
+2. Gossip Monger consumes it, validates the payload, persists a record, and dispatches it to the provider.
+3. The outcome — including provider errors — is persisted for auditing and debugging.
 
-### RabbitMQ Integration Details
+No pre-registration is required beyond RabbitMQ publish access: any message from a service namespaced `io.opencrafts.*` is accepted and registered automatically on first use.
 
-To send a notification request, an external service must publish a message to the specified RabbitMQ exchange and routing key.
+## Architecture at a glance
 
-| Component       | Type      | Name                                                 | Description                                                                                                              |
-| :-------------- | :-------- | :--------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
-| **Exchange**    | `direct`  | `gossip-monger.exchange`                             | The main exchange that requesting services must bind to and publish messages on.                                         |
-| **Queue**       | `classic` | `io.opencrafts.gossip-monger.notification.requested` | The queue that Gossip Monger listens to for incoming requests.                                                           |
-| **Routing Key** | `string`  | `notification.requested`                             | The routing key that must be used when publishing a message to `gossip-monger.exchange` to be consumed by Gossip Monger. |
+| Exchange | Type | Routing key | Purpose |
+|---|---|---|---|
+| `gossip.topic.exchange` | topic | `gossip.emails.send` | Send an email via Resend |
+| `gossip.topic.exchange` | topic | `gossip.push.send` | Send a push notification via OneSignal |
+| `verisafe.exchange` | fanout | `verisafe.user.*` | Sync Gossip Monger's local user directory from Verisafe |
 
-**Gossip Monger** binds the queue `io.opencrafts.gossip-monger.notification.requested` to the exchange `gossip-monger.exchange` using the routing key `notification.requested` and continuously acts as a consumer.
-
----
-
-## Notification Request Payload
-
-All messages sent to the `gossip-monger.exchange` with the routing key `notification.requested` must be a valid JSON object conforming to the following structure.
-
-### Sample Payload
+Every message shares the same envelope shape — a channel-specific payload plus shared `metadata`:
 
 ```json
 {
-    "notification": {
-        "app_id": "88ca0bb7-c0d7-4e36-b9e6-ea0e29213593",
-        "headings": {
-            "en": "Ping!"
-        },
-        "contents": {
-            "en": "Notification Content here"
-        },	
-        "target_user_id": "f71a-2b57-4678-8776-9708c92d8dd1", // Primary user to recieve the notification
-        "include_external_user_ids": [
-            "3a3-bb78-4a76-918e-875778053c70",
-            "664-a407-4271-87f2-eb6efbfeb1ea"
-        ], // Other users to recieve the notification
-        "subtitle": {
-            "en": "This is a notification subtitle"
-        },
-        "android_channel_id": "60023d0b-dcd4-41ae-8e58-7eabbf382c8c" , // refer to @erick for other possible valies
-        "ios_sound": "pay",
-        "big_picture": "https://images.com/image.png",
-        "large_icon": "https://images.com/image.png",
-        "small_icon": "https://images.com/image.png",
-        "url": "https://opencrafts.io", // The url to launch
-        "buttons": [
-            {
-                "id": "id-01", // Random id
-                "text": "Pay Now",
-                "icon":"ic" // Refere to mobile team for possible values
-            },
-            {
-                "id": "id-02",
-                "text": "Pay Later",
-                "icon":""
-            }
-        ]
-    },
-    "meta": {
-        "event_type": "notification.requested",
-        "source_service_id": "io.opencrafts.verisafe",
-        "request_id": "00000000-0000-0000-0000-000000000000"
-    }
+  "email": { "...": "..." },
+  "metadata": {
+    "event_type": "email.send",
+    "source_service_id": "io.opencrafts.<your-service>",
+    "request_id": "a UUID, unique per event",
+    "timestamp": "2024-11-01T10:00:00Z"
+  }
 }
-
 ```
 
-## Payload Specification
+(Push notifications use the same `metadata` shape with a `notification` payload instead of `email`.)
 
-The top-level object must contain two mandatory keys: `notification` and `meta`.
+## Documentation
 
-### 1. notification Object (Required)
+Field references, valid/invalid payload examples, and idempotency rules live under [`docs/`](docs):
 
-This object contains all the details required to construct and send the user notification (primarily for Push Notifications via Onesignal).
+- [Sending email](docs/email_integration_guide.md)
+- [Sending push notifications](docs/push_notification_integration.md)
+- [Architecture decisions](docs/adrs) — why things work the way they do, and what's deliberately deferred
 
+## Configuration
 
-> Check the comments on the json payload for more info where unclear
+Copy [`example.env`](example.env) to `.env` and fill in your own values.
 
-### 2. `meta` Object (Required)
+| Variable | Purpose |
+|---|---|
+| `GOSSIP_MONGER_PORT`, `GOSSIP_MONGER_ADDRESS` | Health-check server binding |
+| `DB_*` | Postgres connection and pool sizing |
+| `RABBITMQ_*` | Broker connection |
+| `ONESIGNAL_APP_ID`, `ONESIGNAL_REST_API_KEY` | Push provider credentials |
+| `RESEND_API_KEY` | Email provider credentials |
+| `RESEND_ALLOWED_SENDER_DOMAINS` | Comma-separated domains a `from_address` is allowed to end with |
+| `GOOSE_*` | Migration runner settings |
 
-This object provides context and tracing information for the request.
+## Local development
 
-| Key                 | Type   | Required | Description                                                                                                          |
-| ------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `event_type`        | string | `true`   | Must be set to notification.requested. Used by Gossip Monger to validate the action.                                 |
-| `source_service_id` | string | true     | A unique identifier for the service making the request (e.g., io.opencrafts.verisafe).                               |
-| request_id          | uuid   | true     | A unique UUID generated by the source service. This will be used by Gossip Monger for internal tracking and logging. |
+Requires Go 1.25+, PostgreSQL, and RabbitMQ running locally.
 
+```bash
+cp example.env .env   # then fill in your local values
+go run ./cmd/api       # migrations run automatically on startup
+```
 
-## To Wrap things up
-1.  **Gossip Monger's Setup (Internal):**
-    * Gossip Monger creates the exchange `gossip-monger.exchange` (type `direct`).
-    * Gossip Monger creates the queue `io.opencrafts.gossip-monger.notification.requested`.
-    * Gossip Monger **binds** its queue to the exchange using the routing key `notification.requested`.
+Run the tests:
 
-2.  **Requesting Service's Action (External):**
-    * The requesting service connects to the RabbitMQ broker.
-    * The service **publishes** a JSON message (the payload) to the exchange named `gossip-monger.exchange`.
-    * Critically, the message **must** be published with the routing key set to `notification.requested`.
+```bash
+go test ./...
+```
 
-### 3. Publishing to Gossip Monger
+The repository layer (`internal/repository/`) is generated by [sqlc](https://sqlc.dev) from `database/queries/*.sql`. After changing a query, regenerate it:
 
-The requesting service does **not** need to declare the queue or the binding; it only needs to know the Exchange name and the Routing Key.
+```bash
+sqlc generate
+```
 
-A successful publication action in code would typically look like this:
+## Tech stack
 
-```pseudocode
-// 1. Define the targets
-EXCHANGE_NAME = "gossip-monger.exchange"
-ROUTING_KEY   = "notification.requested"
-
-// 2. Prepare the payload (example JSON structure)
-payload = { ... } // (Your full notification request JSON)
-
-// 3. Publish the message
-rabbitmq_channel.publish(
-    exchange=EXCHANGE_NAME,
-    routing_key=ROUTING_KEY,
-    body=JSON.stringify(payload),
-    // Optional: Set delivery mode to persistent for reliability
-    properties={delivery_mode: 2} 
-)
+Go &middot; PostgreSQL &middot; RabbitMQ &middot; [sqlc](https://sqlc.dev) &middot; [goose](https://github.com/pressly/goose) &middot; OneSignal &middot; Resend
