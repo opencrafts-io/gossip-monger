@@ -61,9 +61,8 @@ Every message must be valid JSON with two top-level fields: `metadata` and `noti
 |------------|-----------------|----------------------------------------------------------------|
 | `headings` | object          | Notification title by language. **Must include `"en"`**        |
 | `contents` | object          | Notification body by language. **Must include `"en"`**         |
-| `target_user_id` | string (UUID) | The primary recipient's user ID. Always required.          |
 
-At least one targeting field must also be present (see [Targeting](#targeting) below).
+At least one targeting field must be present (see [Targeting](#targeting) below) — `target_user_id` counts as one, but so does any of the others, so it is not the only way to target a notification.
 
 #### Optional content fields
 
@@ -92,10 +91,11 @@ At least one targeting field must also be present (see [Targeting](#targeting) b
 
 ## Targeting
 
-You must provide at least one of the following targeting fields, in addition to `target_user_id`.
+You must provide at least one of the following targeting fields.
 
 | Field                     | Type     | Description                                      |
 |---------------------------|----------|--------------------------------------------------|
+| `target_user_id`          | string (UUID) | The primary recipient's ID, forwarded to OneSignal as an external-id alias. **Does not need to be a user known to Gossip Monger** — any UUID your service uses to identify the recipient is accepted. |
 | `included_segments`       | string[] | OneSignal segment names to target                |
 | `excluded_segments`       | string[] | OneSignal segment names to exclude               |
 | `include_external_user_ids` | string[] | OneSignal external user IDs                    |
@@ -229,13 +229,12 @@ The simplest possible notification — a heading, body, and a target user.
   "metadata": { "..." : "..." },
   "notification": {
     "headings": { "en": "Hello" },
-    "contents": { "en": "This is a test." },
-    "target_user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    "contents": { "en": "This is a test." }
   }
 }
 ```
 
-**What went wrong:** `target_user_id` alone is not sufficient targeting. You must also provide at least one of `included_segments`, `include_external_user_ids`, `include_email_tokens`, etc.
+**What went wrong:** No targeting mechanism was provided at all. You must include at least one of `target_user_id`, `included_segments`, `include_external_user_ids`, `include_email_tokens`, etc. — `target_user_id` by itself is sufficient targeting, it's simply missing here.
 
 ---
 
@@ -305,6 +304,7 @@ The simplest possible notification — a heading, body, and a target user.
 
 ## Notes
 
-- The `app_id` field on the notification object is ignored. The service uses its own configured OneSignal app ID.
+- The `app_id` field on the notification object is ignored. The service uses its own configured OneSignal app ID (see [ADR-0005](adrs/0005-defer-per-service-onesignal-app-and-api-key-routing.md)).
+- `target_user_id`/`source_user_id` are not validated against any internal user directory — they are recorded as-is and forwarded to OneSignal as external-id aliases (see [ADR-0001](adrs/0001-drop-foreign-key-from-notifications-to-local-users-table.md)). There is no pre-registration step for `source_service_id` on push, same as before.
 - Successful and failed notifications are both persisted, including the raw OneSignal response and any error details.
 - `request_id` is used for tracing only — include a unique value per message to make debugging easier.
