@@ -43,7 +43,8 @@ type Config struct {
 
 	// Resend configuration
 	ResendConfig struct {
-		ResendAPIKey string `envconfig:"RESEND_API_KEY"`
+		ResendAPIKey         string   `envconfig:"RESEND_API_KEY"`
+		AllowedSenderDomains []string `envconfig:"RESEND_ALLOWED_SENDER_DOMAINS" default:"@posta.opencrafts.io"`
 	}
 }
 

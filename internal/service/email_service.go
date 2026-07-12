@@ -18,20 +18,23 @@ type EmailService interface {
 }
 
 type emailService struct {
-	pool        *pgxpool.Pool
-	logger      *slog.Logger
-	emailClient *resend.Client
+	pool                 *pgxpool.Pool
+	logger               *slog.Logger
+	emailClient          *resend.Client
+	allowedSenderDomains []string
 }
 
 func NewEmailService(
 	pool *pgxpool.Pool,
 	emailClient *resend.Client,
+	allowedSenderDomains []string,
 	logger *slog.Logger,
 ) EmailService {
 	return &emailService{
-		pool:        pool,
-		emailClient: emailClient,
-		logger:      logger,
+		pool:                 pool,
+		emailClient:          emailClient,
+		allowedSenderDomains: allowedSenderDomains,
+		logger:               logger,
 	}
 }
 
@@ -60,6 +63,13 @@ func (es *emailService) Send(ctx context.Context, emailEvent EmailEvent) error {
 	}()
 
 	repo := repository.New(tx)
+
+	if _, err := repo.UpsertService(ctx, repository.UpsertServiceParams{
+		ID:   emailEvent.Meta.SourceServiceID,
+		Name: emailEvent.Meta.SourceServiceID,
+	}); err != nil {
+		return fmt.Errorf("failed to upsert service: %w", err)
+	}
 
 	now := time.Now()
 	emailReq, err := repo.CreateEmailRequest(
@@ -167,11 +177,17 @@ func (es *emailService) emailToResendEmailRequest(
 		return nil, fmt.Errorf("from address is required")
 	}
 
-	const allowedSenderDomain = "@posta.opencrafts.io"
-	if !strings.HasSuffix(email.FromAddress, allowedSenderDomain) {
+	allowed := false
+	for _, domain := range es.allowedSenderDomains {
+		if strings.HasSuffix(email.FromAddress, domain) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
 		return nil, fmt.Errorf(
-			"from address must end with %s",
-			allowedSenderDomain,
+			"from address must end with one of: %s",
+			strings.Join(es.allowedSenderDomains, ", "),
 		)
 	}
 

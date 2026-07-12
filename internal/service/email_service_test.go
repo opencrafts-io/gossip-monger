@@ -222,9 +222,38 @@ func TestEmailToResendEmailRequest(t *testing.T) {
 				assert.Nil(t, req.Template)
 			},
 		},
+		{
+			name: "from address matching a second configured domain",
+			email: Email{
+				FromAddress: "sender@posta.example-brand.io",
+				ToAddresses: []string{"recipient@example.com"},
+				Subject:     "Test Subject",
+				BodyHtml:    stringPtr("<h1>Hello</h1>"),
+			},
+			expectError: false,
+			validate: func(t *testing.T, req *resend.SendEmailRequest) {
+				assert.Equal(t, "sender@posta.example-brand.io", req.From)
+			},
+		},
+		{
+			name: "from address outside all configured domains",
+			email: Email{
+				FromAddress: "sender@unrelated-domain.io",
+				ToAddresses: []string{"recipient@example.com"},
+				Subject:     "Test Subject",
+				BodyHtml:    stringPtr("<h1>Hello</h1>"),
+			},
+			expectError: true,
+			errorMsg:    "from address must end with one of",
+		},
 	}
 
-	es := &emailService{}
+	es := &emailService{
+		allowedSenderDomains: []string{
+			"@posta.opencrafts.io",
+			"@posta.example-brand.io",
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

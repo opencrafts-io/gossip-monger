@@ -104,7 +104,12 @@ func NewGossipMongerApp(
 
 	resendClient := resend.NewClient(cfg.ResendConfig.ResendAPIKey)
 
-	emailService := service.NewEmailService(connPool, resendClient, logger)
+	emailService := service.NewEmailService(
+		connPool,
+		resendClient,
+		cfg.ResendConfig.AllowedSenderDomains,
+		logger,
+	)
 
 	userService := service.NewUserService(connPool, logger)
 
