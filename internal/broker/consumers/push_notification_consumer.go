@@ -54,7 +54,7 @@ func (pnc *PushNotificationConsumer) handleMessage(
 		return err
 	}
 
-	if !strings.Contains(notifMsg.Metadata.SourceServiceID, "io.opencrafts.") {
+	if !strings.HasPrefix(notifMsg.Metadata.SourceServiceID, "io.opencrafts.") {
 		return fmt.Errorf(
 			"wrong service id expected service id to be in the io.opencrafts namespace instead got '%s'",
 			notifMsg.Metadata.SourceServiceID,
