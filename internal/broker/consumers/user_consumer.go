@@ -22,7 +22,9 @@ func NewUserConsumer(
 	logger *slog.Logger,
 ) *UserConsumer {
 	return &UserConsumer{
-		consumer:    broker.NewConsumer(conn, 10, *logger),
+		// No dead-letter exchange: user sync doesn't call a third-party API,
+		// so it keeps the original discard-on-error behavior.
+		consumer:    broker.NewConsumer(conn, 10, 0, *logger),
 		userService: userService,
 		logger:      logger,
 	}
@@ -35,6 +37,7 @@ func (uc *UserConsumer) Start(ctx context.Context) error {
 		broker.FanoutExchangeType,
 		"verisafe.user.queue",
 		"verisafe.user.*",
+		"",
 		uc.handleMessage,
 	)
 }

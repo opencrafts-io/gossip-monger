@@ -16,6 +16,14 @@ type MessagePublisher interface {
 		exchange, routingKey string,
 		message any,
 	) error
+	// PublishRaw publishes body as-is, skipping JSON marshaling. Used to
+	// forward an already-serialized message body verbatim, e.g. re-publishing
+	// a dead-lettered delivery's raw bytes to the parked queue.
+	PublishRaw(
+		ctx context.Context,
+		exchange, routingKey string,
+		body []byte,
+	) error
 }
 
 // Publisher implements MessagePublisher
@@ -74,6 +82,46 @@ func (p *Publisher) Publish(
 	}
 
 	p.logger.Debug("message published",
+		"exchange", exchange,
+		"routing_key", routingKey,
+	)
+	return nil
+}
+
+// PublishRaw publishes body as-is, skipping JSON marshaling.
+func (p *Publisher) PublishRaw(
+	ctx context.Context,
+	exchange, routingKey string,
+	body []byte,
+) error {
+	ch := p.conn.Channel()
+	if ch == nil {
+		err := fmt.Errorf("channel is nil")
+		p.logger.Error("cannot publish message", "error", err)
+		return err
+	}
+
+	err := ch.PublishWithContext(
+		ctx,
+		exchange,
+		routingKey,
+		false, // mandatory
+		false, // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		},
+	)
+	if err != nil {
+		p.logger.Error("failed to publish raw message",
+			"exchange", exchange,
+			"routing_key", routingKey,
+			"error", err,
+		)
+		return fmt.Errorf("failed to publish raw message: %w", err)
+	}
+
+	p.logger.Debug("raw message published",
 		"exchange", exchange,
 		"routing_key", routingKey,
 	)

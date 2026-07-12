@@ -20,10 +20,11 @@ type EmailConsumer struct {
 func NewEmailConsumer(
 	conn broker.Connection,
 	emailService service.EmailService,
+	maxRetryAttempts int,
 	logger *slog.Logger,
 ) *EmailConsumer {
 	return &EmailConsumer{
-		consumer:     broker.NewConsumer(conn, 10, *logger),
+		consumer:     broker.NewConsumer(conn, 10, maxRetryAttempts, *logger),
 		emailService: emailService,
 		logger:       logger,
 	}
@@ -36,6 +37,7 @@ func (ec *EmailConsumer) Start(ctx context.Context) error {
 		broker.TopicExchangeType,
 		"gossip.emails.queue",
 		"gossip.emails.*",
+		broker.RetryExchange,
 		ec.handleMessage,
 	)
 }
