@@ -10,16 +10,18 @@ This guide explains how to integrate your service with Gossip Monger to send ema
 
 Before you can send emails through Gossip Monger, confirm the following with the Gossip team:
 
+- Your **RabbitMQ access** to publish to `gossip.topic.exchange` — this is the only credential you actually need to be issued
 - Your **service name** (e.g. `billing`, `auth`) — this determines your `from_address`
-- Your **`source_service_id`** — assigned during your service onboarding, follows the `io.opencrafts.*` namespace (e.g. `io.opencrafts.billing`)
-- Your **RabbitMQ access** to publish to `gossip.topic.exchange`
 - Any **email templates** your service needs — request these from the Gossip team, who will provide you with a `template_id` and the available variable keys
+- If you need to send from a domain other than the ones already approved (see [Field Reference](#email) below), ask the Gossip team to add it
+
+Your **`source_service_id`** does *not* require separate pre-registration. Pick an id in the `io.opencrafts.*` namespace (e.g. `io.opencrafts.billing`) and use it — Gossip Monger registers it automatically the first time you send. Gatekeeping happens at the RabbitMQ credential level: if you can publish to `gossip.topic.exchange` at all, your namespace-valid `source_service_id` will be accepted.
 
 ---
 
 ## How It Works
 
-Your service publishes a JSON message to the RabbitMQ topic exchange. Gossip Monger picks it up, validates it, records it in its database, and dispatches it to Resend.
+Your service publishes a JSON message to the RabbitMQ topic exchange. Gossip Monger picks it up, validates it, records it in its database (auto-registering your `source_service_id` on first send if it hasn't been seen before), and dispatches it to Resend.
 
 - **Exchange:** `gossip.topic.exchange`
 - **Routing key:** `gossip.emails.send`
@@ -76,7 +78,7 @@ Every message must be a JSON object with two top-level keys: `email` and `metada
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `from_address` | string | Yes | Must be `<your-service-name>@posta.opencrafts.io` |
+| `from_address` | string | Yes | Must end with one of Gossip Monger's approved sending domains (currently `@posta.opencrafts.io`; ask the Gossip team if you need another domain approved) |
 | `to_addresses` | array of strings | Yes | At least one recipient required |
 | `subject` | string | Yes | Email subject line |
 | `reply_to` | string | No | Optional reply-to address |
@@ -169,7 +171,7 @@ Invalid because `from_address` is missing. Gossip Monger will reject this.
 }
 ```
 
-Invalid because `from_address` must end with `@posta.opencrafts.io`, not `@opencrafts.io`.
+Invalid because `from_address` must end with one of the approved sending domains (currently `@posta.opencrafts.io`), not `@opencrafts.io`.
 
 ---
 
@@ -238,7 +240,7 @@ Invalid because you cannot provide both `template_id` and body content. Choose o
 }
 ```
 
-Invalid because `source_service_id` must be in the `io.opencrafts.*` namespace. Use the ID assigned to your service during onboarding.
+Invalid because `source_service_id` must be in the `io.opencrafts.*` namespace. There's no separate assignment step — pick an id in that namespace and use it consistently; Gossip Monger registers it on your first successful send.
 
 ---
 
@@ -393,3 +395,10 @@ Every message dispatched through Gossip Monger that reaches Resend costs money. 
 - Have spoken to the Gossip team if you expect high send volumes
 
 If something goes wrong and you suspect emails are being sent unintentionally, contact the Gossip team immediately so the queue can be paused.
+
+---
+
+## See Also
+
+- [ADR-0003: Auto-register services on first email send](adrs/0003-auto-register-services-on-first-email-send.md) — why `source_service_id` no longer needs pre-registration
+- [ADR-0004: Externalize allowed email sender domains to configuration](adrs/0004-externalize-allowed-email-sender-domains-to-configuration.md) — why the sending domain is configurable rather than fixed in code
