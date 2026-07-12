@@ -59,74 +59,15 @@ func (q *Queries) CreateEmailDispatch(ctx context.Context, arg CreateEmailDispat
 	return i, err
 }
 
-const createEmailRequest = `-- name: CreateEmailRequest :one
-INSERT INTO email_requests (
-  service_id, 
-  queue_message_id,
-  exchange,
-  routing_key,
-
-  from_address,
-  reply_to,
-  to_addresses,
-  cc_addresses,
-  bcc_addresses,
-  subject,
-  body_html,
-  body_text,
-  attachments,
-
-  template_id,
-  template_vars,
-
-  status,
-  processed_at
-
-) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-RETURNING id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at
+const getEmailRequestByID = `-- name: GetEmailRequestByID :one
+select id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at
+from email_requests
+where id = $1
+limit 1
 `
 
-type CreateEmailRequestParams struct {
-	ServiceID      string          `json:"service_id"`
-	QueueMessageID string          `json:"queue_message_id"`
-	Exchange       string          `json:"exchange"`
-	RoutingKey     string          `json:"routing_key"`
-	FromAddress    string          `json:"from_address"`
-	ReplyTo        *string         `json:"reply_to"`
-	ToAddresses    []string        `json:"to_addresses"`
-	CcAddresses    []string        `json:"cc_addresses"`
-	BccAddresses   []string        `json:"bcc_addresses"`
-	Subject        string          `json:"subject"`
-	BodyHtml       *string         `json:"body_html"`
-	BodyText       *string         `json:"body_text"`
-	Attachments    json.RawMessage `json:"attachments"`
-	TemplateID     *string         `json:"template_id"`
-	TemplateVars   json.RawMessage `json:"template_vars"`
-	Status         string          `json:"status"`
-	ProcessedAt    *time.Time      `json:"processed_at"`
-}
-
-// Persists an email request to the database for replayability
-func (q *Queries) CreateEmailRequest(ctx context.Context, arg CreateEmailRequestParams) (EmailRequest, error) {
-	row := q.db.QueryRow(ctx, createEmailRequest,
-		arg.ServiceID,
-		arg.QueueMessageID,
-		arg.Exchange,
-		arg.RoutingKey,
-		arg.FromAddress,
-		arg.ReplyTo,
-		arg.ToAddresses,
-		arg.CcAddresses,
-		arg.BccAddresses,
-		arg.Subject,
-		arg.BodyHtml,
-		arg.BodyText,
-		arg.Attachments,
-		arg.TemplateID,
-		arg.TemplateVars,
-		arg.Status,
-		arg.ProcessedAt,
-	)
+func (q *Queries) GetEmailRequestByID(ctx context.Context, id uuid.UUID) (EmailRequest, error) {
+	row := q.db.QueryRow(ctx, getEmailRequestByID, id)
 	var i EmailRequest
 	err := row.Scan(
 		&i.ID,
@@ -152,15 +93,20 @@ func (q *Queries) CreateEmailRequest(ctx context.Context, arg CreateEmailRequest
 	return i, err
 }
 
-const getEmailRequestByID = `-- name: GetEmailRequestByID :one
+const getEmailRequestByQueueMessageID = `-- name: GetEmailRequestByQueueMessageID :one
 select id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at
 from email_requests
-where id = $1
+where queue_message_id = $1
 limit 1
 `
 
-func (q *Queries) GetEmailRequestByID(ctx context.Context, id uuid.UUID) (EmailRequest, error) {
-	row := q.db.QueryRow(ctx, getEmailRequestByID, id)
+// Used to detect a duplicate send before calling Resend: if a request with
+// this queue_message_id was already dispatched, the caller must skip
+// resending rather than upsert-and-retry, or a legitimate DLX redelivery
+// and an external duplicate republish become indistinguishable and both
+// would trigger a second real send.
+func (q *Queries) GetEmailRequestByQueueMessageID(ctx context.Context, queueMessageID string) (EmailRequest, error) {
+	row := q.db.QueryRow(ctx, getEmailRequestByQueueMessageID, queueMessageID)
 	var i EmailRequest
 	err := row.Scan(
 		&i.ID,
@@ -257,6 +203,106 @@ type UpdateEmailRequestStatusByIDParams struct {
 // the predefined statuses
 func (q *Queries) UpdateEmailRequestStatusByID(ctx context.Context, arg UpdateEmailRequestStatusByIDParams) (EmailRequest, error) {
 	row := q.db.QueryRow(ctx, updateEmailRequestStatusByID, arg.ID, arg.Status)
+	var i EmailRequest
+	err := row.Scan(
+		&i.ID,
+		&i.ServiceID,
+		&i.QueueMessageID,
+		&i.Exchange,
+		&i.RoutingKey,
+		&i.FromAddress,
+		&i.ReplyTo,
+		&i.ToAddresses,
+		&i.CcAddresses,
+		&i.BccAddresses,
+		&i.Subject,
+		&i.BodyHtml,
+		&i.BodyText,
+		&i.Attachments,
+		&i.TemplateID,
+		&i.TemplateVars,
+		&i.Status,
+		&i.ReceivedAt,
+		&i.ProcessedAt,
+	)
+	return i, err
+}
+
+const upsertEmailRequest = `-- name: UpsertEmailRequest :one
+INSERT INTO email_requests (
+  service_id,
+  queue_message_id,
+  exchange,
+  routing_key,
+
+  from_address,
+  reply_to,
+  to_addresses,
+  cc_addresses,
+  bcc_addresses,
+  subject,
+  body_html,
+  body_text,
+  attachments,
+
+  template_id,
+  template_vars,
+
+  status,
+  processed_at
+
+) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+ON CONFLICT (queue_message_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  processed_at = EXCLUDED.processed_at
+RETURNING id, service_id, queue_message_id, exchange, routing_key, from_address, reply_to, to_addresses, cc_addresses, bcc_addresses, subject, body_html, body_text, attachments, template_id, template_vars, status, received_at, processed_at
+`
+
+type UpsertEmailRequestParams struct {
+	ServiceID      string          `json:"service_id"`
+	QueueMessageID string          `json:"queue_message_id"`
+	Exchange       string          `json:"exchange"`
+	RoutingKey     string          `json:"routing_key"`
+	FromAddress    string          `json:"from_address"`
+	ReplyTo        *string         `json:"reply_to"`
+	ToAddresses    []string        `json:"to_addresses"`
+	CcAddresses    []string        `json:"cc_addresses"`
+	BccAddresses   []string        `json:"bcc_addresses"`
+	Subject        string          `json:"subject"`
+	BodyHtml       *string         `json:"body_html"`
+	BodyText       *string         `json:"body_text"`
+	Attachments    json.RawMessage `json:"attachments"`
+	TemplateID     *string         `json:"template_id"`
+	TemplateVars   json.RawMessage `json:"template_vars"`
+	Status         string          `json:"status"`
+	ProcessedAt    *time.Time      `json:"processed_at"`
+}
+
+// Persists an email request to the database for replayability, or updates
+// it in place if this is a retry of the same queue_message_id (dead-lettered
+// redelivery) — retrying must not hit the queue_message_id UNIQUE
+// constraint as a fresh insert, or the retry mechanism would just fail
+// forever on the second attempt without ever reaching Resend again.
+func (q *Queries) UpsertEmailRequest(ctx context.Context, arg UpsertEmailRequestParams) (EmailRequest, error) {
+	row := q.db.QueryRow(ctx, upsertEmailRequest,
+		arg.ServiceID,
+		arg.QueueMessageID,
+		arg.Exchange,
+		arg.RoutingKey,
+		arg.FromAddress,
+		arg.ReplyTo,
+		arg.ToAddresses,
+		arg.CcAddresses,
+		arg.BccAddresses,
+		arg.Subject,
+		arg.BodyHtml,
+		arg.BodyText,
+		arg.Attachments,
+		arg.TemplateID,
+		arg.TemplateVars,
+		arg.Status,
+		arg.ProcessedAt,
+	)
 	var i EmailRequest
 	err := row.Scan(
 		&i.ID,

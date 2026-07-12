@@ -16,17 +16,26 @@ type Querier interface {
 	// Records an email dispatch to the email sending service for compliance
 	// purposes
 	CreateEmailDispatch(ctx context.Context, arg CreateEmailDispatchParams) (EmailDispatch, error)
-	// Persists an email request to the database for replayability
-	CreateEmailRequest(ctx context.Context, arg CreateEmailRequestParams) (EmailRequest, error)
-	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteNotification(ctx context.Context, id uuid.UUID) error
 	DeleteUserByID(ctx context.Context, id uuid.UUID) error
 	GetEmailRequestByID(ctx context.Context, id uuid.UUID) (EmailRequest, error)
+	// Used to detect a duplicate send before calling Resend: if a request with
+	// this queue_message_id was already dispatched, the caller must skip
+	// resending rather than upsert-and-retry, or a legitimate DLX redelivery
+	// and an external duplicate republish become indistinguishable and both
+	// would trigger a second real send.
+	GetEmailRequestByQueueMessageID(ctx context.Context, queueMessageID string) (EmailRequest, error)
 	// Orders the time it was recieved ie the most previous
 	GetEmailRequestByService(ctx context.Context, arg GetEmailRequestByServiceParams) ([]EmailRequest, error)
 	GetNotificationByID(ctx context.Context, id uuid.UUID) (Notification, error)
 	GetNotificationByOneSignalID(ctx context.Context, onesignalNotificationID *string) (Notification, error)
+	// Used to detect a duplicate send before calling OneSignal: if a
+	// notification with this queue_message_id was already sent, the caller
+	// must skip resending rather than upsert-and-retry, or a legitimate DLX
+	// redelivery and an external duplicate republish become indistinguishable
+	// and both would trigger a second real send.
+	GetNotificationByQueueMessageID(ctx context.Context, queueMessageID *string) (Notification, error)
 	GetNotificationStats(ctx context.Context, targetUserID pgtype.UUID) (GetNotificationStatsRow, error)
 	GetNotificationStatsByType(ctx context.Context, notificationType *string) (GetNotificationStatsByTypeRow, error)
 	GetNotificationsByExternalUserID(ctx context.Context, arg GetNotificationsByExternalUserIDParams) ([]Notification, error)
@@ -44,6 +53,18 @@ type Querier interface {
 	UpdateNotificationOneSignalData(ctx context.Context, arg UpdateNotificationOneSignalDataParams) error
 	UpdateNotificationStatus(ctx context.Context, arg UpdateNotificationStatusParams) error
 	UpdateUserByID(ctx context.Context, arg UpdateUserByIDParams) (User, error)
+	// Persists an email request to the database for replayability, or updates
+	// it in place if this is a retry of the same queue_message_id (dead-lettered
+	// redelivery) — retrying must not hit the queue_message_id UNIQUE
+	// constraint as a fresh insert, or the retry mechanism would just fail
+	// forever on the second attempt without ever reaching Resend again.
+	UpsertEmailRequest(ctx context.Context, arg UpsertEmailRequestParams) (EmailRequest, error)
+	// Inserts a notification send attempt, or updates it in place if this is a
+	// retry of the same queue_message_id (dead-lettered redelivery). Keeping one
+	// row per logical send, updated across attempts, matches how this table
+	// already behaves (a single mutable outcome row, not an attempt-history
+	// table like email_requests/email_dispatches).
+	UpsertNotification(ctx context.Context, arg UpsertNotificationParams) (Notification, error)
 	// Registers a service on first use so email onboarding is self-service;
 	// ON CONFLICT DO UPDATE (a no-op) instead of DO NOTHING so RETURNING always
 	// yields exactly one row, whether the service already existed or not.

@@ -24,249 +24,6 @@ func (q *Queries) CleanupOldNotifications(ctx context.Context) error {
 	return err
 }
 
-const createNotification = `-- name: CreateNotification :one
-INSERT INTO notifications (
-    app_id,
-    included_segments,
-    excluded_segments,
-    include_player_ids,
-    include_external_user_ids,
-    include_email_tokens,
-    include_phone_numbers,
-    include_ios_tokens,
-    include_wp_wns_uris,
-    include_amazon_reg_ids,
-    include_chrome_reg_ids,
-    include_chrome_web_reg_ids,
-    include_android_reg_ids,
-    contents,
-    headings,
-    subtitle,
-    big_picture,
-    large_icon,
-    small_icon,
-    ios_attachments,
-    android_channel_id,
-    android_accent_color,
-    android_led_color,
-    android_group,
-    android_group_message,
-    android_sound,
-    ios_sound,
-    wp_wns_sound,
-    adm_sound,
-    chrome_web_image,
-    chrome_web_icon,
-    chrome_web_badge,
-    chrome_web_color,
-    chrome_web_sound,
-    url,
-    web_url,
-    app_url,
-    data,
-    filters,
-    tags,
-    send_after,
-    delayed_option,
-    delivery_time_of_day,
-    ttl,
-    priority,
-    target_user_id,
-    source_service_id,
-    source_user_id,
-    notification_type,
-    onesignal_notification_id,
-    onesignal_status,
-    onesignal_response,
-    onesignal_error
- 
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-    $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39,
-    $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53 
-)
-RETURNING id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at
-`
-
-type CreateNotificationParams struct {
-	AppID                   string           `json:"app_id"`
-	IncludedSegments        []string         `json:"included_segments"`
-	ExcludedSegments        []string         `json:"excluded_segments"`
-	IncludePlayerIds        []string         `json:"include_player_ids"`
-	IncludeExternalUserIds  []string         `json:"include_external_user_ids"`
-	IncludeEmailTokens      []string         `json:"include_email_tokens"`
-	IncludePhoneNumbers     []string         `json:"include_phone_numbers"`
-	IncludeIosTokens        []string         `json:"include_ios_tokens"`
-	IncludeWpWnsUris        []string         `json:"include_wp_wns_uris"`
-	IncludeAmazonRegIds     []string         `json:"include_amazon_reg_ids"`
-	IncludeChromeRegIds     []string         `json:"include_chrome_reg_ids"`
-	IncludeChromeWebRegIds  []string         `json:"include_chrome_web_reg_ids"`
-	IncludeAndroidRegIds    []string         `json:"include_android_reg_ids"`
-	Contents                json.RawMessage  `json:"contents"`
-	Headings                json.RawMessage  `json:"headings"`
-	Subtitle                json.RawMessage  `json:"subtitle"`
-	BigPicture              *string          `json:"big_picture"`
-	LargeIcon               *string          `json:"large_icon"`
-	SmallIcon               *string          `json:"small_icon"`
-	IosAttachments          json.RawMessage  `json:"ios_attachments"`
-	AndroidChannelID        *string          `json:"android_channel_id"`
-	AndroidAccentColor      *string          `json:"android_accent_color"`
-	AndroidLedColor         *string          `json:"android_led_color"`
-	AndroidGroup            *string          `json:"android_group"`
-	AndroidGroupMessage     json.RawMessage  `json:"android_group_message"`
-	AndroidSound            *string          `json:"android_sound"`
-	IosSound                *string          `json:"ios_sound"`
-	WpWnsSound              *string          `json:"wp_wns_sound"`
-	AdmSound                *string          `json:"adm_sound"`
-	ChromeWebImage          *string          `json:"chrome_web_image"`
-	ChromeWebIcon           *string          `json:"chrome_web_icon"`
-	ChromeWebBadge          *string          `json:"chrome_web_badge"`
-	ChromeWebColor          *string          `json:"chrome_web_color"`
-	ChromeWebSound          *string          `json:"chrome_web_sound"`
-	Url                     *string          `json:"url"`
-	WebUrl                  *string          `json:"web_url"`
-	AppUrl                  *string          `json:"app_url"`
-	Data                    json.RawMessage  `json:"data"`
-	Filters                 json.RawMessage  `json:"filters"`
-	Tags                    json.RawMessage  `json:"tags"`
-	SendAfter               pgtype.Timestamp `json:"send_after"`
-	DelayedOption           *string          `json:"delayed_option"`
-	DeliveryTimeOfDay       pgtype.Time      `json:"delivery_time_of_day"`
-	Ttl                     *int32           `json:"ttl"`
-	Priority                *int32           `json:"priority"`
-	TargetUserID            pgtype.UUID      `json:"target_user_id"`
-	SourceServiceID         *string          `json:"source_service_id"`
-	SourceUserID            pgtype.UUID      `json:"source_user_id"`
-	NotificationType        *string          `json:"notification_type"`
-	OnesignalNotificationID *string          `json:"onesignal_notification_id"`
-	OnesignalStatus         *string          `json:"onesignal_status"`
-	OnesignalResponse       json.RawMessage  `json:"onesignal_response"`
-	OnesignalError          *string          `json:"onesignal_error"`
-}
-
-func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error) {
-	row := q.db.QueryRow(ctx, createNotification,
-		arg.AppID,
-		arg.IncludedSegments,
-		arg.ExcludedSegments,
-		arg.IncludePlayerIds,
-		arg.IncludeExternalUserIds,
-		arg.IncludeEmailTokens,
-		arg.IncludePhoneNumbers,
-		arg.IncludeIosTokens,
-		arg.IncludeWpWnsUris,
-		arg.IncludeAmazonRegIds,
-		arg.IncludeChromeRegIds,
-		arg.IncludeChromeWebRegIds,
-		arg.IncludeAndroidRegIds,
-		arg.Contents,
-		arg.Headings,
-		arg.Subtitle,
-		arg.BigPicture,
-		arg.LargeIcon,
-		arg.SmallIcon,
-		arg.IosAttachments,
-		arg.AndroidChannelID,
-		arg.AndroidAccentColor,
-		arg.AndroidLedColor,
-		arg.AndroidGroup,
-		arg.AndroidGroupMessage,
-		arg.AndroidSound,
-		arg.IosSound,
-		arg.WpWnsSound,
-		arg.AdmSound,
-		arg.ChromeWebImage,
-		arg.ChromeWebIcon,
-		arg.ChromeWebBadge,
-		arg.ChromeWebColor,
-		arg.ChromeWebSound,
-		arg.Url,
-		arg.WebUrl,
-		arg.AppUrl,
-		arg.Data,
-		arg.Filters,
-		arg.Tags,
-		arg.SendAfter,
-		arg.DelayedOption,
-		arg.DeliveryTimeOfDay,
-		arg.Ttl,
-		arg.Priority,
-		arg.TargetUserID,
-		arg.SourceServiceID,
-		arg.SourceUserID,
-		arg.NotificationType,
-		arg.OnesignalNotificationID,
-		arg.OnesignalStatus,
-		arg.OnesignalResponse,
-		arg.OnesignalError,
-	)
-	var i Notification
-	err := row.Scan(
-		&i.ID,
-		&i.AppID,
-		&i.IncludedSegments,
-		&i.ExcludedSegments,
-		&i.IncludePlayerIds,
-		&i.IncludeExternalUserIds,
-		&i.IncludeEmailTokens,
-		&i.IncludePhoneNumbers,
-		&i.IncludeIosTokens,
-		&i.IncludeWpWnsUris,
-		&i.IncludeAmazonRegIds,
-		&i.IncludeChromeRegIds,
-		&i.IncludeChromeWebRegIds,
-		&i.IncludeAndroidRegIds,
-		&i.Contents,
-		&i.Headings,
-		&i.Subtitle,
-		&i.Buttons,
-		&i.WebButtons,
-		&i.BigPicture,
-		&i.LargeIcon,
-		&i.SmallIcon,
-		&i.IosAttachments,
-		&i.AndroidChannelID,
-		&i.AndroidAccentColor,
-		&i.AndroidLedColor,
-		&i.AndroidGroup,
-		&i.AndroidGroupMessage,
-		&i.AndroidSound,
-		&i.IosSound,
-		&i.WpWnsSound,
-		&i.AdmSound,
-		&i.ChromeWebImage,
-		&i.ChromeWebIcon,
-		&i.ChromeWebBadge,
-		&i.ChromeWebColor,
-		&i.ChromeWebSound,
-		&i.Url,
-		&i.WebUrl,
-		&i.AppUrl,
-		&i.Data,
-		&i.Filters,
-		&i.Tags,
-		&i.SendAfter,
-		&i.DelayedOption,
-		&i.DeliveryTimeOfDay,
-		&i.Ttl,
-		&i.Priority,
-		&i.OnesignalNotificationID,
-		&i.OnesignalStatus,
-		&i.OnesignalResponse,
-		&i.OnesignalError,
-		&i.TargetUserID,
-		&i.SourceServiceID,
-		&i.SourceUserID,
-		&i.NotificationType,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.SentAt,
-		&i.DeliveredAt,
-	)
-	return i, err
-}
-
 const deleteNotification = `-- name: DeleteNotification :exec
 DELETE FROM notifications
 WHERE id = $1
@@ -278,7 +35,7 @@ func (q *Queries) DeleteNotification(ctx context.Context, id uuid.UUID) error {
 }
 
 const getNotificationByID = `-- name: GetNotificationByID :one
-SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at FROM notifications 
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications 
 WHERE id = $1
 `
 
@@ -347,12 +104,13 @@ func (q *Queries) GetNotificationByID(ctx context.Context, id uuid.UUID) (Notifi
 		&i.UpdatedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
+		&i.QueueMessageID,
 	)
 	return i, err
 }
 
 const getNotificationByOneSignalID = `-- name: GetNotificationByOneSignalID :one
-SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at FROM notifications 
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications 
 WHERE onesignal_notification_id = $1
 `
 
@@ -421,6 +179,87 @@ func (q *Queries) GetNotificationByOneSignalID(ctx context.Context, onesignalNot
 		&i.UpdatedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
+		&i.QueueMessageID,
+	)
+	return i, err
+}
+
+const getNotificationByQueueMessageID = `-- name: GetNotificationByQueueMessageID :one
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications
+WHERE queue_message_id = $1
+`
+
+// Used to detect a duplicate send before calling OneSignal: if a
+// notification with this queue_message_id was already sent, the caller
+// must skip resending rather than upsert-and-retry, or a legitimate DLX
+// redelivery and an external duplicate republish become indistinguishable
+// and both would trigger a second real send.
+func (q *Queries) GetNotificationByQueueMessageID(ctx context.Context, queueMessageID *string) (Notification, error) {
+	row := q.db.QueryRow(ctx, getNotificationByQueueMessageID, queueMessageID)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.IncludedSegments,
+		&i.ExcludedSegments,
+		&i.IncludePlayerIds,
+		&i.IncludeExternalUserIds,
+		&i.IncludeEmailTokens,
+		&i.IncludePhoneNumbers,
+		&i.IncludeIosTokens,
+		&i.IncludeWpWnsUris,
+		&i.IncludeAmazonRegIds,
+		&i.IncludeChromeRegIds,
+		&i.IncludeChromeWebRegIds,
+		&i.IncludeAndroidRegIds,
+		&i.Contents,
+		&i.Headings,
+		&i.Subtitle,
+		&i.Buttons,
+		&i.WebButtons,
+		&i.BigPicture,
+		&i.LargeIcon,
+		&i.SmallIcon,
+		&i.IosAttachments,
+		&i.AndroidChannelID,
+		&i.AndroidAccentColor,
+		&i.AndroidLedColor,
+		&i.AndroidGroup,
+		&i.AndroidGroupMessage,
+		&i.AndroidSound,
+		&i.IosSound,
+		&i.WpWnsSound,
+		&i.AdmSound,
+		&i.ChromeWebImage,
+		&i.ChromeWebIcon,
+		&i.ChromeWebBadge,
+		&i.ChromeWebColor,
+		&i.ChromeWebSound,
+		&i.Url,
+		&i.WebUrl,
+		&i.AppUrl,
+		&i.Data,
+		&i.Filters,
+		&i.Tags,
+		&i.SendAfter,
+		&i.DelayedOption,
+		&i.DeliveryTimeOfDay,
+		&i.Ttl,
+		&i.Priority,
+		&i.OnesignalNotificationID,
+		&i.OnesignalStatus,
+		&i.OnesignalResponse,
+		&i.OnesignalError,
+		&i.TargetUserID,
+		&i.SourceServiceID,
+		&i.SourceUserID,
+		&i.NotificationType,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SentAt,
+		&i.DeliveredAt,
+		&i.QueueMessageID,
 	)
 	return i, err
 }
@@ -496,7 +335,7 @@ func (q *Queries) GetNotificationStatsByType(ctx context.Context, notificationTy
 }
 
 const getNotificationsByExternalUserID = `-- name: GetNotificationsByExternalUserID :many
-SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at FROM notifications 
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications 
 WHERE $1 = ANY(include_external_user_ids)
 ORDER BY created_at DESC
 LIMIT $2
@@ -580,6 +419,7 @@ func (q *Queries) GetNotificationsByExternalUserID(ctx context.Context, arg GetN
 			&i.UpdatedAt,
 			&i.SentAt,
 			&i.DeliveredAt,
+			&i.QueueMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -592,7 +432,7 @@ func (q *Queries) GetNotificationsByExternalUserID(ctx context.Context, arg GetN
 }
 
 const getNotificationsByStatus = `-- name: GetNotificationsByStatus :many
-SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at FROM notifications 
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications 
 WHERE status = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -676,6 +516,7 @@ func (q *Queries) GetNotificationsByStatus(ctx context.Context, arg GetNotificat
 			&i.UpdatedAt,
 			&i.SentAt,
 			&i.DeliveredAt,
+			&i.QueueMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -688,7 +529,7 @@ func (q *Queries) GetNotificationsByStatus(ctx context.Context, arg GetNotificat
 }
 
 const getNotificationsByTargetUser = `-- name: GetNotificationsByTargetUser :many
-SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at FROM notifications 
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications 
 WHERE target_user_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -772,6 +613,7 @@ func (q *Queries) GetNotificationsByTargetUser(ctx context.Context, arg GetNotif
 			&i.UpdatedAt,
 			&i.SentAt,
 			&i.DeliveredAt,
+			&i.QueueMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -784,7 +626,7 @@ func (q *Queries) GetNotificationsByTargetUser(ctx context.Context, arg GetNotif
 }
 
 const getNotificationsByType = `-- name: GetNotificationsByType :many
-SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at FROM notifications 
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications 
 WHERE notification_type = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -868,6 +710,7 @@ func (q *Queries) GetNotificationsByType(ctx context.Context, arg GetNotificatio
 			&i.UpdatedAt,
 			&i.SentAt,
 			&i.DeliveredAt,
+			&i.QueueMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -880,7 +723,7 @@ func (q *Queries) GetNotificationsByType(ctx context.Context, arg GetNotificatio
 }
 
 const getPendingNotifications = `-- name: GetPendingNotifications :many
-SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at FROM notifications 
+SELECT id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id FROM notifications 
 WHERE status = 'pending'
   AND (send_after IS NULL OR send_after <= NOW())
 ORDER BY created_at ASC
@@ -958,6 +801,7 @@ func (q *Queries) GetPendingNotifications(ctx context.Context, limit int32) ([]N
 			&i.UpdatedAt,
 			&i.SentAt,
 			&i.DeliveredAt,
+			&i.QueueMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -1043,4 +887,315 @@ func (q *Queries) UpdateNotificationStatus(ctx context.Context, arg UpdateNotifi
 		arg.OnesignalError,
 	)
 	return err
+}
+
+const upsertNotification = `-- name: UpsertNotification :one
+INSERT INTO notifications (
+    app_id,
+    included_segments,
+    excluded_segments,
+    include_player_ids,
+    include_external_user_ids,
+    include_email_tokens,
+    include_phone_numbers,
+    include_ios_tokens,
+    include_wp_wns_uris,
+    include_amazon_reg_ids,
+    include_chrome_reg_ids,
+    include_chrome_web_reg_ids,
+    include_android_reg_ids,
+    contents,
+    headings,
+    subtitle,
+    big_picture,
+    large_icon,
+    small_icon,
+    ios_attachments,
+    android_channel_id,
+    android_accent_color,
+    android_led_color,
+    android_group,
+    android_group_message,
+    android_sound,
+    ios_sound,
+    wp_wns_sound,
+    adm_sound,
+    chrome_web_image,
+    chrome_web_icon,
+    chrome_web_badge,
+    chrome_web_color,
+    chrome_web_sound,
+    url,
+    web_url,
+    app_url,
+    data,
+    filters,
+    tags,
+    send_after,
+    delayed_option,
+    delivery_time_of_day,
+    ttl,
+    priority,
+    target_user_id,
+    source_service_id,
+    source_user_id,
+    notification_type,
+    onesignal_notification_id,
+    onesignal_status,
+    onesignal_response,
+    onesignal_error,
+    queue_message_id,
+    status
+
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+    $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39,
+    $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55
+)
+ON CONFLICT (queue_message_id) DO UPDATE SET
+    app_id = EXCLUDED.app_id,
+    included_segments = EXCLUDED.included_segments,
+    excluded_segments = EXCLUDED.excluded_segments,
+    include_player_ids = EXCLUDED.include_player_ids,
+    include_external_user_ids = EXCLUDED.include_external_user_ids,
+    include_email_tokens = EXCLUDED.include_email_tokens,
+    include_phone_numbers = EXCLUDED.include_phone_numbers,
+    include_ios_tokens = EXCLUDED.include_ios_tokens,
+    include_wp_wns_uris = EXCLUDED.include_wp_wns_uris,
+    include_amazon_reg_ids = EXCLUDED.include_amazon_reg_ids,
+    include_chrome_reg_ids = EXCLUDED.include_chrome_reg_ids,
+    include_chrome_web_reg_ids = EXCLUDED.include_chrome_web_reg_ids,
+    include_android_reg_ids = EXCLUDED.include_android_reg_ids,
+    contents = EXCLUDED.contents,
+    headings = EXCLUDED.headings,
+    subtitle = EXCLUDED.subtitle,
+    big_picture = EXCLUDED.big_picture,
+    large_icon = EXCLUDED.large_icon,
+    small_icon = EXCLUDED.small_icon,
+    ios_attachments = EXCLUDED.ios_attachments,
+    android_channel_id = EXCLUDED.android_channel_id,
+    android_accent_color = EXCLUDED.android_accent_color,
+    android_led_color = EXCLUDED.android_led_color,
+    android_group = EXCLUDED.android_group,
+    android_group_message = EXCLUDED.android_group_message,
+    android_sound = EXCLUDED.android_sound,
+    ios_sound = EXCLUDED.ios_sound,
+    wp_wns_sound = EXCLUDED.wp_wns_sound,
+    adm_sound = EXCLUDED.adm_sound,
+    chrome_web_image = EXCLUDED.chrome_web_image,
+    chrome_web_icon = EXCLUDED.chrome_web_icon,
+    chrome_web_badge = EXCLUDED.chrome_web_badge,
+    chrome_web_color = EXCLUDED.chrome_web_color,
+    chrome_web_sound = EXCLUDED.chrome_web_sound,
+    url = EXCLUDED.url,
+    web_url = EXCLUDED.web_url,
+    app_url = EXCLUDED.app_url,
+    data = EXCLUDED.data,
+    filters = EXCLUDED.filters,
+    tags = EXCLUDED.tags,
+    send_after = EXCLUDED.send_after,
+    delayed_option = EXCLUDED.delayed_option,
+    delivery_time_of_day = EXCLUDED.delivery_time_of_day,
+    ttl = EXCLUDED.ttl,
+    priority = EXCLUDED.priority,
+    target_user_id = EXCLUDED.target_user_id,
+    source_service_id = EXCLUDED.source_service_id,
+    source_user_id = EXCLUDED.source_user_id,
+    notification_type = EXCLUDED.notification_type,
+    onesignal_notification_id = EXCLUDED.onesignal_notification_id,
+    onesignal_status = EXCLUDED.onesignal_status,
+    onesignal_response = EXCLUDED.onesignal_response,
+    onesignal_error = EXCLUDED.onesignal_error,
+    status = EXCLUDED.status,
+    updated_at = NOW()
+RETURNING id, app_id, included_segments, excluded_segments, include_player_ids, include_external_user_ids, include_email_tokens, include_phone_numbers, include_ios_tokens, include_wp_wns_uris, include_amazon_reg_ids, include_chrome_reg_ids, include_chrome_web_reg_ids, include_android_reg_ids, contents, headings, subtitle, buttons, web_buttons, big_picture, large_icon, small_icon, ios_attachments, android_channel_id, android_accent_color, android_led_color, android_group, android_group_message, android_sound, ios_sound, wp_wns_sound, adm_sound, chrome_web_image, chrome_web_icon, chrome_web_badge, chrome_web_color, chrome_web_sound, url, web_url, app_url, data, filters, tags, send_after, delayed_option, delivery_time_of_day, ttl, priority, onesignal_notification_id, onesignal_status, onesignal_response, onesignal_error, target_user_id, source_service_id, source_user_id, notification_type, status, created_at, updated_at, sent_at, delivered_at, queue_message_id
+`
+
+type UpsertNotificationParams struct {
+	AppID                   string           `json:"app_id"`
+	IncludedSegments        []string         `json:"included_segments"`
+	ExcludedSegments        []string         `json:"excluded_segments"`
+	IncludePlayerIds        []string         `json:"include_player_ids"`
+	IncludeExternalUserIds  []string         `json:"include_external_user_ids"`
+	IncludeEmailTokens      []string         `json:"include_email_tokens"`
+	IncludePhoneNumbers     []string         `json:"include_phone_numbers"`
+	IncludeIosTokens        []string         `json:"include_ios_tokens"`
+	IncludeWpWnsUris        []string         `json:"include_wp_wns_uris"`
+	IncludeAmazonRegIds     []string         `json:"include_amazon_reg_ids"`
+	IncludeChromeRegIds     []string         `json:"include_chrome_reg_ids"`
+	IncludeChromeWebRegIds  []string         `json:"include_chrome_web_reg_ids"`
+	IncludeAndroidRegIds    []string         `json:"include_android_reg_ids"`
+	Contents                json.RawMessage  `json:"contents"`
+	Headings                json.RawMessage  `json:"headings"`
+	Subtitle                json.RawMessage  `json:"subtitle"`
+	BigPicture              *string          `json:"big_picture"`
+	LargeIcon               *string          `json:"large_icon"`
+	SmallIcon               *string          `json:"small_icon"`
+	IosAttachments          json.RawMessage  `json:"ios_attachments"`
+	AndroidChannelID        *string          `json:"android_channel_id"`
+	AndroidAccentColor      *string          `json:"android_accent_color"`
+	AndroidLedColor         *string          `json:"android_led_color"`
+	AndroidGroup            *string          `json:"android_group"`
+	AndroidGroupMessage     json.RawMessage  `json:"android_group_message"`
+	AndroidSound            *string          `json:"android_sound"`
+	IosSound                *string          `json:"ios_sound"`
+	WpWnsSound              *string          `json:"wp_wns_sound"`
+	AdmSound                *string          `json:"adm_sound"`
+	ChromeWebImage          *string          `json:"chrome_web_image"`
+	ChromeWebIcon           *string          `json:"chrome_web_icon"`
+	ChromeWebBadge          *string          `json:"chrome_web_badge"`
+	ChromeWebColor          *string          `json:"chrome_web_color"`
+	ChromeWebSound          *string          `json:"chrome_web_sound"`
+	Url                     *string          `json:"url"`
+	WebUrl                  *string          `json:"web_url"`
+	AppUrl                  *string          `json:"app_url"`
+	Data                    json.RawMessage  `json:"data"`
+	Filters                 json.RawMessage  `json:"filters"`
+	Tags                    json.RawMessage  `json:"tags"`
+	SendAfter               pgtype.Timestamp `json:"send_after"`
+	DelayedOption           *string          `json:"delayed_option"`
+	DeliveryTimeOfDay       pgtype.Time      `json:"delivery_time_of_day"`
+	Ttl                     *int32           `json:"ttl"`
+	Priority                *int32           `json:"priority"`
+	TargetUserID            pgtype.UUID      `json:"target_user_id"`
+	SourceServiceID         *string          `json:"source_service_id"`
+	SourceUserID            pgtype.UUID      `json:"source_user_id"`
+	NotificationType        *string          `json:"notification_type"`
+	OnesignalNotificationID *string          `json:"onesignal_notification_id"`
+	OnesignalStatus         *string          `json:"onesignal_status"`
+	OnesignalResponse       json.RawMessage  `json:"onesignal_response"`
+	OnesignalError          *string          `json:"onesignal_error"`
+	QueueMessageID          *string          `json:"queue_message_id"`
+	Status                  *string          `json:"status"`
+}
+
+// Inserts a notification send attempt, or updates it in place if this is a
+// retry of the same queue_message_id (dead-lettered redelivery). Keeping one
+// row per logical send, updated across attempts, matches how this table
+// already behaves (a single mutable outcome row, not an attempt-history
+// table like email_requests/email_dispatches).
+func (q *Queries) UpsertNotification(ctx context.Context, arg UpsertNotificationParams) (Notification, error) {
+	row := q.db.QueryRow(ctx, upsertNotification,
+		arg.AppID,
+		arg.IncludedSegments,
+		arg.ExcludedSegments,
+		arg.IncludePlayerIds,
+		arg.IncludeExternalUserIds,
+		arg.IncludeEmailTokens,
+		arg.IncludePhoneNumbers,
+		arg.IncludeIosTokens,
+		arg.IncludeWpWnsUris,
+		arg.IncludeAmazonRegIds,
+		arg.IncludeChromeRegIds,
+		arg.IncludeChromeWebRegIds,
+		arg.IncludeAndroidRegIds,
+		arg.Contents,
+		arg.Headings,
+		arg.Subtitle,
+		arg.BigPicture,
+		arg.LargeIcon,
+		arg.SmallIcon,
+		arg.IosAttachments,
+		arg.AndroidChannelID,
+		arg.AndroidAccentColor,
+		arg.AndroidLedColor,
+		arg.AndroidGroup,
+		arg.AndroidGroupMessage,
+		arg.AndroidSound,
+		arg.IosSound,
+		arg.WpWnsSound,
+		arg.AdmSound,
+		arg.ChromeWebImage,
+		arg.ChromeWebIcon,
+		arg.ChromeWebBadge,
+		arg.ChromeWebColor,
+		arg.ChromeWebSound,
+		arg.Url,
+		arg.WebUrl,
+		arg.AppUrl,
+		arg.Data,
+		arg.Filters,
+		arg.Tags,
+		arg.SendAfter,
+		arg.DelayedOption,
+		arg.DeliveryTimeOfDay,
+		arg.Ttl,
+		arg.Priority,
+		arg.TargetUserID,
+		arg.SourceServiceID,
+		arg.SourceUserID,
+		arg.NotificationType,
+		arg.OnesignalNotificationID,
+		arg.OnesignalStatus,
+		arg.OnesignalResponse,
+		arg.OnesignalError,
+		arg.QueueMessageID,
+		arg.Status,
+	)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.AppID,
+		&i.IncludedSegments,
+		&i.ExcludedSegments,
+		&i.IncludePlayerIds,
+		&i.IncludeExternalUserIds,
+		&i.IncludeEmailTokens,
+		&i.IncludePhoneNumbers,
+		&i.IncludeIosTokens,
+		&i.IncludeWpWnsUris,
+		&i.IncludeAmazonRegIds,
+		&i.IncludeChromeRegIds,
+		&i.IncludeChromeWebRegIds,
+		&i.IncludeAndroidRegIds,
+		&i.Contents,
+		&i.Headings,
+		&i.Subtitle,
+		&i.Buttons,
+		&i.WebButtons,
+		&i.BigPicture,
+		&i.LargeIcon,
+		&i.SmallIcon,
+		&i.IosAttachments,
+		&i.AndroidChannelID,
+		&i.AndroidAccentColor,
+		&i.AndroidLedColor,
+		&i.AndroidGroup,
+		&i.AndroidGroupMessage,
+		&i.AndroidSound,
+		&i.IosSound,
+		&i.WpWnsSound,
+		&i.AdmSound,
+		&i.ChromeWebImage,
+		&i.ChromeWebIcon,
+		&i.ChromeWebBadge,
+		&i.ChromeWebColor,
+		&i.ChromeWebSound,
+		&i.Url,
+		&i.WebUrl,
+		&i.AppUrl,
+		&i.Data,
+		&i.Filters,
+		&i.Tags,
+		&i.SendAfter,
+		&i.DelayedOption,
+		&i.DeliveryTimeOfDay,
+		&i.Ttl,
+		&i.Priority,
+		&i.OnesignalNotificationID,
+		&i.OnesignalStatus,
+		&i.OnesignalResponse,
+		&i.OnesignalError,
+		&i.TargetUserID,
+		&i.SourceServiceID,
+		&i.SourceUserID,
+		&i.NotificationType,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SentAt,
+		&i.DeliveredAt,
+		&i.QueueMessageID,
+	)
+	return i, err
 }
