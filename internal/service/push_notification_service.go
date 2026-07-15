@@ -283,7 +283,11 @@ func (pns *pushNotificationService) notificationToUpsertParams(
 func (pns *pushNotificationService) preparePushPayload(
 	pushNotification repository.Notification,
 ) (*onesignal.Notification, error) {
-	notification := *onesignal.NewNotification(os.Getenv("ONESIGNAL_APP_ID"))
+	appID := pushNotification.AppID
+	if appID == "" {
+		appID = os.Getenv("ONESIGNAL_APP_ID")
+	}
+	notification := *onesignal.NewNotification(appID)
 	// set default to push
 	notification.SetTargetChannel("push")
 
