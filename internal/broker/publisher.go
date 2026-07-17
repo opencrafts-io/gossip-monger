@@ -53,12 +53,12 @@ func (p *Publisher) Publish(
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	ch := p.conn.Channel()
-	if ch == nil {
-		err := fmt.Errorf("channel is nil")
+	ch, err := p.conn.Channel()
+	if err != nil {
 		p.logger.Error("cannot publish message", "error", err)
 		return err
 	}
+	defer ch.Close()
 
 	// Publish the message
 	err = ch.PublishWithContext(
@@ -94,14 +94,14 @@ func (p *Publisher) PublishRaw(
 	exchange, routingKey string,
 	body []byte,
 ) error {
-	ch := p.conn.Channel()
-	if ch == nil {
-		err := fmt.Errorf("channel is nil")
+	ch, err := p.conn.Channel()
+	if err != nil {
 		p.logger.Error("cannot publish message", "error", err)
 		return err
 	}
+	defer ch.Close()
 
-	err := ch.PublishWithContext(
+	err = ch.PublishWithContext(
 		ctx,
 		exchange,
 		routingKey,
