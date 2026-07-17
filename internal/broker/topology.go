@@ -34,10 +34,11 @@ func DeclareRetryTopology(
 	sourceExchange string,
 	routingKeys []string,
 ) error {
-	ch := conn.Channel()
-	if ch == nil {
-		return fmt.Errorf("channel is nil")
+	ch, err := conn.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to open channel: %w", err)
 	}
+	defer ch.Close()
 
 	if err := ch.ExchangeDeclare(
 		RetryExchange,
@@ -51,7 +52,7 @@ func DeclareRetryTopology(
 		return fmt.Errorf("failed to declare retry exchange: %w", err)
 	}
 
-	_, err := ch.QueueDeclare(
+	_, err = ch.QueueDeclare(
 		RetryQueue,
 		true,  // durable
 		false, // delete when unused
