@@ -27,7 +27,7 @@ Your service publishes a JSON message to the RabbitMQ topic exchange. Gossip Mon
 - **Routing key:** `gossip.emails.send`
 - **Exchange type:** Topic
 
-If the dispatch fails (e.g. Resend returns an error), Gossip Monger will mark the request as failed and retry it automatically when the system is free. There is no guaranteed retry time. **Do not republish the same message to force a retry** — if you publish again using the same `request_id`, it will be rejected automatically due to idempotency checks.
+If the dispatch fails (e.g. Resend returns an error, or Resend is down and Gossip Monger's circuit breaker is protecting it from being hammered further), Gossip Monger marks the request accordingly and retries it automatically, with a delay, up to a configured number of attempts — you don't need to do anything. There is no guaranteed retry time. **Do not republish the same message to force a retry** — if you publish again using the same `request_id` while the original is still retrying or already dispatched, Gossip Monger will recognize it as the same logical send and will not dispatch it a second time.
 
 ---
 
@@ -377,11 +377,12 @@ Invalid because `content` is missing. Gossip Monger will fail to parse the attac
 
 ## Idempotency and Retries
 
-Every message requires a unique `request_id` (UUID). Gossip Monger uses this to prevent duplicate processing.
+Every message requires a unique `request_id` (UUID). Gossip Monger uses this as the idempotency key for the whole lifecycle of a send, not just the first attempt.
 
-- **If a message is processed successfully**, publishing the same `request_id` again will be rejected
-- **If a message fails** (e.g. Resend returns an error), Gossip Monger will retry it automatically. Do not republish — doing so with the same `request_id` will fail, and with a new `request_id` will result in a duplicate send attempt once the original retry also goes through
-- Generate a fresh UUID per send event, not per session or per user
+- **If a message was already dispatched successfully**, publishing the same `request_id` again is a safe no-op — Gossip Monger recognizes it and will not send a second email.
+- **If a message fails** (provider error, or the circuit breaker is open because Resend looks down), Gossip Monger retries it automatically with a delay, up to a configured number of attempts, before routing it to a queue for manual review. You do not need to republish it.
+- **Do not republish with a new `request_id`** to "make sure it goes through" — Gossip Monger has no way to know it's the same logical email, and you will get a duplicate send once the original attempt (or its automatic retry) also completes.
+- Generate a fresh UUID per send event, not per session or per user.
 
 ---
 
@@ -402,3 +403,4 @@ If something goes wrong and you suspect emails are being sent unintentionally, c
 
 - [ADR-0003: Auto-register services on first email send](adrs/0003-auto-register-services-on-first-email-send.md) — why `source_service_id` no longer needs pre-registration
 - [ADR-0004: Externalize allowed email sender domains to configuration](adrs/0004-externalize-allowed-email-sender-domains-to-configuration.md) — why the sending domain is configurable rather than fixed in code
+- [ADR-0006: Add circuit breaker and dead-letter retry for third-party notification providers](adrs/0006-add-circuit-breaker-and-dead-letter-retry-for-third-party-notification-providers.md) — why a failed send is retried automatically instead of silently dropped

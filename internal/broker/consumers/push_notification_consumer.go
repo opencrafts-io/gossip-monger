@@ -20,10 +20,11 @@ type PushNotificationConsumer struct {
 func NewPushNotificationConsumer(
 	conn broker.Connection,
 	notificationService service.PushNotificationService,
+	maxRetryAttempts int,
 	logger *slog.Logger,
 ) *PushNotificationConsumer {
 	return &PushNotificationConsumer{
-		consumer:            broker.NewConsumer(conn, 10, *logger),
+		consumer:            broker.NewConsumer(conn, 10, maxRetryAttempts, *logger),
 		notificationService: notificationService,
 		logger:              logger,
 	}
@@ -36,6 +37,7 @@ func (pnc *PushNotificationConsumer) Start(ctx context.Context) error {
 		broker.TopicExchangeType,
 		"gossip.notification.queue",
 		"gossip.push.*",
+		broker.RetryExchange,
 		pnc.handleMessage,
 	)
 }
@@ -63,7 +65,11 @@ func (pnc *PushNotificationConsumer) handleMessage(
 
 	switch notifMsg.Metadata.EventType {
 	case "push.send":
-		return pnc.notificationService.Send(ctx, notifMsg.Notification)
+		return pnc.notificationService.Send(
+			ctx,
+			notifMsg.Notification,
+			notifMsg.Metadata.RequestID,
+		)
 	default:
 		pnc.logger.Error(
 			"Got wrong event metadata type",

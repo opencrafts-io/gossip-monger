@@ -51,7 +51,7 @@ Every message must be valid JSON with two top-level fields: `metadata` and `noti
 | `event_type`      | string | Yes      | Must be `"push.send"` for sending a notification                            |
 | `timestamp`       | string | Yes      | ISO 8601 timestamp of when your service produced the event                  |
 | `source_service_id` | string | Yes    | Your service's identifier. **Must start with `io.opencrafts.`**             |
-| `request_id`      | string | Yes      | A unique ID for this request, used for tracing and logging                  |
+| `request_id`      | string | Yes      | A unique ID for this request. Doubles as the idempotency key — see [Retries](#retries) below |
 
 ### `notification` fields
 
@@ -302,9 +302,19 @@ The simplest possible notification — a heading, body, and a target user.
 
 ---
 
+## Retries
+
+`request_id` is your idempotency key for the whole lifecycle of a send, not just the first attempt.
+
+- **If a push was already sent successfully**, publishing the same `request_id` again is a safe no-op — Gossip Monger recognizes it and will not send a second push.
+- **If a send fails** (OneSignal error, or the circuit breaker is open because OneSignal looks down), Gossip Monger retries it automatically with a delay, up to a configured number of attempts, before routing it to a queue for manual review. You do not need to republish it.
+- **Do not republish with a new `request_id`** to "make sure it goes through" — Gossip Monger has no way to know it's the same logical push, and you will get a duplicate send once the original attempt (or its automatic retry) also completes.
+- Generate a fresh UUID per send event, not per session or per user.
+
+---
+
 ## Notes
 
 - The `app_id` field on the notification object is ignored. The service uses its own configured OneSignal app ID (see [ADR-0005](adrs/0005-defer-per-service-onesignal-app-and-api-key-routing.md)).
 - `target_user_id`/`source_user_id` are not validated against any internal user directory — they are recorded as-is and forwarded to OneSignal as external-id aliases (see [ADR-0001](adrs/0001-drop-foreign-key-from-notifications-to-local-users-table.md)). There is no pre-registration step for `source_service_id` on push, same as before.
-- Successful and failed notifications are both persisted, including the raw OneSignal response and any error details.
-- `request_id` is used for tracing only — include a unique value per message to make debugging easier.
+- Every attempt is persisted, including breaker-rejected and provider-error outcomes, not just successes — see [ADR-0006](adrs/0006-add-circuit-breaker-and-dead-letter-retry-for-third-party-notification-providers.md).

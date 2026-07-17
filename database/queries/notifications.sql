@@ -1,4 +1,9 @@
--- name: CreateNotification :one
+-- name: UpsertNotification :one
+-- Inserts a notification send attempt, or updates it in place if this is a
+-- retry of the same queue_message_id (dead-lettered redelivery). Keeping one
+-- row per logical send, updated across attempts, matches how this table
+-- already behaves (a single mutable outcome row, not an attempt-history
+-- table like email_requests/email_dispatches).
 INSERT INTO notifications (
     app_id,
     included_segments,
@@ -52,14 +57,81 @@ INSERT INTO notifications (
     onesignal_notification_id,
     onesignal_status,
     onesignal_response,
-    onesignal_error
- 
+    onesignal_error,
+    queue_message_id,
+    status
+
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
     $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39,
-    $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53 
+    $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55
 )
+ON CONFLICT (queue_message_id) DO UPDATE SET
+    app_id = EXCLUDED.app_id,
+    included_segments = EXCLUDED.included_segments,
+    excluded_segments = EXCLUDED.excluded_segments,
+    include_player_ids = EXCLUDED.include_player_ids,
+    include_external_user_ids = EXCLUDED.include_external_user_ids,
+    include_email_tokens = EXCLUDED.include_email_tokens,
+    include_phone_numbers = EXCLUDED.include_phone_numbers,
+    include_ios_tokens = EXCLUDED.include_ios_tokens,
+    include_wp_wns_uris = EXCLUDED.include_wp_wns_uris,
+    include_amazon_reg_ids = EXCLUDED.include_amazon_reg_ids,
+    include_chrome_reg_ids = EXCLUDED.include_chrome_reg_ids,
+    include_chrome_web_reg_ids = EXCLUDED.include_chrome_web_reg_ids,
+    include_android_reg_ids = EXCLUDED.include_android_reg_ids,
+    contents = EXCLUDED.contents,
+    headings = EXCLUDED.headings,
+    subtitle = EXCLUDED.subtitle,
+    big_picture = EXCLUDED.big_picture,
+    large_icon = EXCLUDED.large_icon,
+    small_icon = EXCLUDED.small_icon,
+    ios_attachments = EXCLUDED.ios_attachments,
+    android_channel_id = EXCLUDED.android_channel_id,
+    android_accent_color = EXCLUDED.android_accent_color,
+    android_led_color = EXCLUDED.android_led_color,
+    android_group = EXCLUDED.android_group,
+    android_group_message = EXCLUDED.android_group_message,
+    android_sound = EXCLUDED.android_sound,
+    ios_sound = EXCLUDED.ios_sound,
+    wp_wns_sound = EXCLUDED.wp_wns_sound,
+    adm_sound = EXCLUDED.adm_sound,
+    chrome_web_image = EXCLUDED.chrome_web_image,
+    chrome_web_icon = EXCLUDED.chrome_web_icon,
+    chrome_web_badge = EXCLUDED.chrome_web_badge,
+    chrome_web_color = EXCLUDED.chrome_web_color,
+    chrome_web_sound = EXCLUDED.chrome_web_sound,
+    url = EXCLUDED.url,
+    web_url = EXCLUDED.web_url,
+    app_url = EXCLUDED.app_url,
+    data = EXCLUDED.data,
+    filters = EXCLUDED.filters,
+    tags = EXCLUDED.tags,
+    send_after = EXCLUDED.send_after,
+    delayed_option = EXCLUDED.delayed_option,
+    delivery_time_of_day = EXCLUDED.delivery_time_of_day,
+    ttl = EXCLUDED.ttl,
+    priority = EXCLUDED.priority,
+    target_user_id = EXCLUDED.target_user_id,
+    source_service_id = EXCLUDED.source_service_id,
+    source_user_id = EXCLUDED.source_user_id,
+    notification_type = EXCLUDED.notification_type,
+    onesignal_notification_id = EXCLUDED.onesignal_notification_id,
+    onesignal_status = EXCLUDED.onesignal_status,
+    onesignal_response = EXCLUDED.onesignal_response,
+    onesignal_error = EXCLUDED.onesignal_error,
+    status = EXCLUDED.status,
+    updated_at = NOW()
 RETURNING *;
+
+-- name: GetNotificationByQueueMessageID :one
+-- Used to detect a duplicate send before calling OneSignal: if a
+-- notification with this queue_message_id was already sent, the caller
+-- must skip resending rather than upsert-and-retry, or a legitimate DLX
+-- redelivery and an external duplicate republish become indistinguishable
+-- and both would trigger a second real send.
+SELECT * FROM notifications
+WHERE queue_message_id = $1;
 
 -- name: GetNotificationByID :one
 SELECT * FROM notifications 

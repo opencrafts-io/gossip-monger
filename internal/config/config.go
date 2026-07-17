@@ -33,6 +33,22 @@ type Config struct {
 		RabbitMQPass    string `envconfig:"RABBITMQ_PASSWORD"`
 		RabbitMQAddress string `envconfig:"RABBITMQ_ADDRESS"`
 		RabbitMQPort    int    `envconfig:"RABBITMQ_PORT"`
+
+		// RetryDelaySeconds is how long a failed message waits in the
+		// retry queue before being redelivered to its original queue.
+		RetryDelaySeconds int `envconfig:"RETRY_DELAY_SECONDS" default:"30"`
+		// MaxRetryAttempts is how many times a message may be redelivered
+		// before it is routed to the parked queue for manual triage.
+		MaxRetryAttempts int `envconfig:"MAX_RETRY_ATTEMPTS" default:"5"`
+	}
+
+	// BreakerConfig configures the circuit breakers guarding calls to
+	// OneSignal and Resend. The same thresholds apply to both providers —
+	// nothing today suggests they need independent tuning.
+	BreakerConfig struct {
+		ConsecutiveFailures uint32 `envconfig:"BREAKER_CONSECUTIVE_FAILURES" default:"5"`
+		OpenTimeoutSeconds  int    `envconfig:"BREAKER_OPEN_TIMEOUT_SECONDS" default:"30"`
+		HalfOpenMaxRequests uint32 `envconfig:"BREAKER_HALF_OPEN_MAX_REQUESTS" default:"1"`
 	}
 
 	// OneSignal configuration
