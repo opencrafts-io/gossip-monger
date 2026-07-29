@@ -76,14 +76,13 @@ func (c *Consumer) Consume(
 	deadLetterExchange string,
 	handler MessageHandler,
 ) error {
-	ch := c.conn.Channel()
-	if ch == nil {
-		err := fmt.Errorf("channel is nil")
+	ch, err := c.conn.Channel()
+	if err != nil {
 		c.logger.Error("cannot consume messages", "error", err)
 		return err
 	}
 	defer ch.Close()
-	err := ch.ExchangeDeclare(
+	err = ch.ExchangeDeclare(
 		exchange,             // name
 		string(exchangeType), // type
 		true,                 // durable (survives restart)
