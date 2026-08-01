@@ -62,6 +62,16 @@ Copy [`example.env`](example.env) to `.env` and fill in your own values.
 | `RESEND_ALLOWED_SENDER_DOMAINS` | Comma-separated domains a `from_address` is allowed to end with |
 | `GOOSE_*` | Migration runner settings |
 
+## Deploying via Dokploy
+
+[`docker-compose.yml`](docker-compose.yml) runs the app container only — it
+does not bundle Postgres or RabbitMQ, both of which are expected to already
+be reachable on the network (Postgres via `DB_*` env vars, RabbitMQ via
+`RABBITMQ_*`). Set every variable in the table above through Dokploy's
+environment variable UI; `GOOSE_*` vars are only used by the standalone
+`goose` CLI for manual migrations and are not needed here — migrations run
+automatically on startup regardless.
+
 ## Local development
 
 Requires Go 1.25+, PostgreSQL, and RabbitMQ running locally.

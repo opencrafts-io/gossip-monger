@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
@@ -69,8 +70,10 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	cfg := Config{}
 
-	// load the configs
-	if err := godotenv.Load(".env"); err != nil {
+	// load the configs. A missing .env file is fine — deployments such as
+	// Dokploy inject environment variables directly into the container
+	// instead of mounting a .env file.
+	if err := godotenv.Load(".env"); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("Failed to load environment variables: %v", err)
 	}
 	if err := envconfig.Process("", &cfg); err != nil {

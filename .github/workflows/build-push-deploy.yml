@@ -44,9 +44,21 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           IMAGE="${{ steps.img.outputs.image }}"
-          echo "Building and pushing image: $IMAGE"
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
+          TAGS=("$IMAGE")
+          if [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "master" ]; then
+            TAGS+=("opencrafts/notifications-backend-prod:latest")
+          fi
+
+          BUILD_ARGS=()
+          for T in "${TAGS[@]}"; do BUILD_ARGS+=(-t "$T"); done
+
+          echo "Building image with tags: ${TAGS[*]}"
+          docker build "${BUILD_ARGS[@]}" .
+
+          for T in "${TAGS[@]}"; do
+            echo "Pushing $T"
+            docker push "$T"
+          done
 
       - name: Checkout InfraOps Repo
         uses: actions/checkout@v4
