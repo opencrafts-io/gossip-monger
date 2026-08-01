@@ -1,0 +1,62 @@
+services:
+  app:
+    image: opencrafts/notifications-backend-prod:latest
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      # Application configuration
+      # NOTE: bind address defaults to 0.0.0.0, not "localhost" — the app
+      # must be reachable from Traefik/other containers on the network.
+      GOSSIP_MONGER_PORT: ${GOSSIP_MONGER_PORT:-6969}
+      GOSSIP_MONGER_ADDRESS: ${GOSSIP_MONGER_ADDRESS:-0.0.0.0}
+
+      # Database configuration — an existing Postgres instance, not managed
+      # by this stack. Provide these via Dokploy's environment variables.
+      DB_HOST: ${DB_HOST}
+      DB_DRIVER: ${DB_DRIVER:-postgres}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_MAX_CON: ${DB_MAX_CON:-10}
+      DB_POOL_MIN_CON: ${DB_POOL_MIN_CON:-2}
+      DB_POOL_MAX_LIFETIME: ${DB_POOL_MAX_LIFETIME:-24}
+
+      # RabbitMQ configuration — reuses an existing broker already reachable
+      # on rizzit_net.
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_ADDRESS: ${RABBITMQ_ADDRESS}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RETRY_DELAY_SECONDS: ${RETRY_DELAY_SECONDS:-30}
+      MAX_RETRY_ATTEMPTS: ${MAX_RETRY_ATTEMPTS:-5}
+
+      # Circuit breaker configuration
+      BREAKER_CONSECUTIVE_FAILURES: ${BREAKER_CONSECUTIVE_FAILURES:-5}
+      BREAKER_OPEN_TIMEOUT_SECONDS: ${BREAKER_OPEN_TIMEOUT_SECONDS:-30}
+      BREAKER_HALF_OPEN_MAX_REQUESTS: ${BREAKER_HALF_OPEN_MAX_REQUESTS:-1}
+
+      # OneSignal configuration
+      ONESIGNAL_APP_ID: ${ONESIGNAL_APP_ID}
+      ONESIGNAL_REST_API_KEY: ${ONESIGNAL_REST_API_KEY}
+
+      # Resend configuration
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_ALLOWED_SENDER_DOMAINS: ${RESEND_ALLOWED_SENDER_DOMAINS:-@posta.opencrafts.io}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.gossip-monger.rule=Host(`gossip.rizzit.cloud`)"
+      - "traefik.http.routers.gossip-monger.entrypoints=websecure"
+      - "traefik.http.routers.gossip-monger.tls.certResolver=letsencrypt"
+      - "traefik.http.services.gossip-monger.loadbalancer.server.port=${GOSSIP_MONGER_PORT:-6969}"
+    networks:
+      - default
+      - dokploy-network
+
+networks:
+  default:
+    name: rizzit_net
+    external: true
+  dokploy-network:
+    external: true
